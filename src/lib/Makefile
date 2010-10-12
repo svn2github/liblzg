@@ -27,42 +27,35 @@
 
 # Compiler and linker settings
 CC = gcc
-CFLAGS = -c -O3 -W -Wall -Iinclude
-LC = gcc
-LFLAGS = -Llib
-LIBS = -llzg
+CFLAGS = -c -O3 -funroll-loops -W -Wall
+AR = ar
+ARFLAGS = -rc
 RM = rm -f
 
 # Files
-STATIC_LIB = lib/liblzg.a
-LZG = lzg
-UNLZG = unlzg
-LZG_OBJS = lzg.o
-UNLZG_OBJS = unlzg.o
+STATIC_LIB = liblzg.a
+OBJS = encode.o \
+       decode.o \
+       checksum.o
 
 # Master rule
-all: $(LZG) $(UNLZG)
+all: $(STATIC_LIB)
 
 # Clean rule
 clean:
-	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS)
-	cd lib && $(MAKE) clean
+	$(RM) $(STATIC_LIB) $(OBJS)
 
 # Library build rule
-$(STATIC_LIB):
-	cd lib && $(MAKE)
-
-# Program build rules
-$(LZG): $(LZG_OBJS) $(STATIC_LIB) 
-	$(LC) $(LFLAGS) -o $@ $(LZG_OBJS) $(LIBS)
-
-$(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB) 
-	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
+$(STATIC_LIB): $(OBJS)
+	$(AR) $(ARFLAGS) -o $@ $(OBJS)
 
 # Object files build rules
-lzg.o: lzg.c include/lzg.h
+encode.o: encode.c internal.h ../include/lzg.h
 	$(CC) $(CFLAGS) $<
 
-unlzg.o: unlzg.c include/lzg.h
+decode.o: decode.c internal.h ../include/lzg.h
+	$(CC) $(CFLAGS) $<
+
+checksum.o: checksum.c
 	$(CC) $(CFLAGS) $<
 

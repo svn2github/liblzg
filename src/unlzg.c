@@ -27,7 +27,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "lzg.h"
+#include <lzg.h>
 
 int main(int argc, char **argv)
 {

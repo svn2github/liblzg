@@ -25,37 +25,36 @@
 *    distribution.
 */
 
-#include "internal.h"
+#ifndef _LZG_INTERNAL_H_
+#define _LZG_INTERNAL_H_
+
+#include "../include/lzg.h"
+
+/* Convenience TRUE/FALSE macros */
+#ifndef TRUE
+# define TRUE 1
+#endif
+#ifndef FALSE
+# define FALSE 0
+#endif
+
+/* Supported compression methods */
+#define LZG_METHOD_COPY 0
+#define LZG_METHOD_LZG1 1
+
+/* Buffer header format definitions */
+#define LZG_HEADER_SIZE 16
+
+typedef struct _lzg_header {
+  unsigned int  encodedSize;
+  unsigned int  decodedSize;
+  unsigned int  checksum;
+  unsigned char method;
+} lzg_header;
+
+/* Checksum calculation function (checksum.c) */
+unsigned int _LZG_CalcChecksum(const unsigned char *in, unsigned int insize);
 
 
-/*-- PRIVATE -----------------------------------------------------------------*/
-
-static int _LZG_SetHeader(const unsigned char *out, unsigned int outsize,
-  lzg_header *hdr)
-{
-    /* Too small buffer? */
-    if (outsize < LZG_HEADER_SIZE)
-        return FALSE;
-
-    /* FIXME */
-
-    return TRUE;
-}
-
-
-/*-- PUBLIC ------------------------------------------------------------------*/
-
-unsigned int LZG_MaxEncodedSize(unsigned int insize)
-{
-    return insize + (insize / 64) + LZG_HEADER_SIZE + 3;
-}
-
-unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-    unsigned char *out, unsigned int outsize)
-{
-    /* FIXME */
-
-    /* Return size of compressed buffer */
-    return 0;
-}
+#endif // _LZG_INTERNAL_H_
 
