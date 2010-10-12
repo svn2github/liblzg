@@ -93,10 +93,6 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned int  i, length, offset;
     lzg_header hdr;
 
-    /* Do we have anything to uncompress? */
-    if (insize < (LZG_HEADER_SIZE + 3))
-        return 0;
-
     /* Get/check header info */
     if (!_LZG_GetHeader(in, insize, &hdr))
         return 0;
@@ -128,6 +124,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     }
 
     /* Get marker symbols from the input stream */
+    if ((src + 3) > in_end) return 0;
     copy3marker = *src++;
     copy4marker = *src++;
     copyNmarker = *src++;

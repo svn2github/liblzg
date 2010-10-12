@@ -34,14 +34,16 @@ LIBS = -llzg
 RM = rm -f
 
 # Files
-STATIC_LIB = lib/liblzg.a
 LZG = lzg
 UNLZG = unlzg
 LZG_OBJS = lzg.o
 UNLZG_OBJS = unlzg.o
+STATIC_LIB = lib/liblzg.a
+
+.PHONY: all clean build-library
 
 # Master rule
-all: $(LZG) $(UNLZG)
+all: build-library $(LZG) $(UNLZG)
 
 # Clean rule
 clean:
@@ -49,14 +51,14 @@ clean:
 	cd lib && $(MAKE) clean
 
 # Library build rule
-$(STATIC_LIB):
+build-library:
 	cd lib && $(MAKE)
 
 # Program build rules
-$(LZG): $(LZG_OBJS) $(STATIC_LIB) 
+$(LZG): $(LZG_OBJS) $(STATIC_LIB)
 	$(LC) $(LFLAGS) -o $@ $(LZG_OBJS) $(LIBS)
 
-$(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB) 
+$(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB)
 	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
 
 # Object files build rules
