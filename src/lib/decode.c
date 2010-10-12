@@ -41,31 +41,31 @@ static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
     if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
         return FALSE;
 
-    /* Check which method is used */
-    hdr->method = in[3];
-    if (hdr->method > LZG_METHOD_LZG1)
-        return FALSE;
-
     /* Get & check input buffer size */
-    hdr->encodedSize = (((unsigned int)in[4]) << 24) |
-                       (((unsigned int)in[5]) << 16) |
-                       (((unsigned int)in[6]) << 8) |
-                       ((unsigned int)in[7]);
+    hdr->encodedSize = (((unsigned int)in[3]) << 24) |
+                       (((unsigned int)in[4]) << 16) |
+                       (((unsigned int)in[5]) << 8) |
+                       ((unsigned int)in[6]);
     if (hdr->encodedSize != (insize - LZG_HEADER_SIZE))
         return FALSE;
 
     /* Get output buffer size */
-    hdr->decodedSize = (((unsigned int)in[8]) << 24) |
-                       (((unsigned int)in[9]) << 16) |
-                       (((unsigned int)in[10]) << 8) |
-                       ((unsigned int)in[11]);
+    hdr->decodedSize = (((unsigned int)in[7]) << 24) |
+                       (((unsigned int)in[8]) << 16) |
+                       (((unsigned int)in[9]) << 8) |
+                       ((unsigned int)in[10]);
 
     /* Get & check checksum */
-    hdr->checksum = (((unsigned int)in[12]) << 24) |
-                    (((unsigned int)in[13]) << 16) |
-                    (((unsigned int)in[14]) << 8) |
-                    ((unsigned int)in[15]);
+    hdr->checksum = (((unsigned int)in[11]) << 24) |
+                    (((unsigned int)in[12]) << 16) |
+                    (((unsigned int)in[13]) << 8) |
+                    ((unsigned int)in[14]);
     if (_LZG_CalcChecksum(&in[LZG_HEADER_SIZE], hdr->encodedSize) != hdr->checksum)
+        return FALSE;
+
+    /* Check which method is used */
+    hdr->method = in[15];
+    if (hdr->method > LZG_METHOD_LZG1)
         return FALSE;
 
     return TRUE;
