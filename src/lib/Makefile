@@ -27,7 +27,7 @@
 
 # Compiler and linker settings
 CC = gcc
-CFLAGS = -c -O3 -funroll-loops -W -Wall
+CFLAGS = -c -g -O3 -funroll-loops -W -Wall
 AR = ar
 ARFLAGS = -rc
 RM = rm -f
