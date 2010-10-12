@@ -122,6 +122,7 @@ static unsigned int _LZG_FindMatch(const unsigned char *first,
     unsigned int i;
 
     /* Try all offsets */
+    *offset = 0;
     for (i = 1; i <= maxOffset; ++i)
     {
         /* Calculate maximum match length for this offset */
@@ -228,20 +229,20 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                 /* Copy variable number of bytes, any offset */
                 if ((dst + 2) > out_end) return 0;
                 *dst++ = copyNmarker;
-                *dst++ = length;
+                *dst++ = length - 3;
                 --offset;
                 if (offset >= 16384)
                 {
                     if ((dst + 3) > out_end) return 0;
                     *dst++ = (offset >> 14) | 0x80;
                     *dst++ = (offset >> 7) | 0x80;
-                    *dst++ = offset;
+                    *dst++ = offset & 0x7f;
                 }
                 else if (offset >= 128)
                 {
                     if ((dst + 2) > out_end) return 0;
                     *dst++ = (offset >> 7) | 0x80;
-                    *dst++ = offset;
+                    *dst++ = offset & 0x7f;
                 }
                 else
                 {
@@ -249,7 +250,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                     *dst++ = offset;
                 }
             }
-            src++;
+            src += length;
         }
         else
         {
