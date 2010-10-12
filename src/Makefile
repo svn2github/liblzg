@@ -37,33 +37,46 @@ RM = rm -f
 
 # Files
 STATIC_LIB = liblzg.a
-LZGDEC = lzgdec
-OBJS = decode.o \
+LZG = lzg
+UNLZG = unlzg
+OBJS = encode.o \
+       decode.o \
        checksum.o
+LZG_OBJS = lzg.o
+UNLZG_OBJS = unlzg.o
 
 # Master rule
-all: $(STATIC_LIB) $(LZGDEC)
+all: $(STATIC_LIB) $(LZG) $(UNLZG)
 
 # Clean rule
 clean:
-	$(RM) $(STATIC_LIB) $(OBJS)
+	$(RM) $(STATIC_LIB) $(OBJS) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS)
 
 # Library build rule
 $(STATIC_LIB): $(OBJS)
 	$(AR) $(ARFLAGS) -o $@ $(OBJS)
 
 # Program build rules
-$(LZGDEC): lzgdec.o $(STATIC_LIB) 
-	$(LC) $(LFLAGS) -o $@ lzgdec.o $(LIBS)
+$(LZG): $(LZG_OBJS) $(STATIC_LIB) 
+	$(LC) $(LFLAGS) -o $@ $(LZG_OBJS) $(LIBS)
+
+$(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB) 
+	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
 
 # Object files build rules
+encode.o: encode.c internal.h lzg.h
+	$(CC) $(CFLAGS) $<
+
 decode.o: decode.c internal.h lzg.h
 	$(CC) $(CFLAGS) $<
 
 checksum.o: checksum.c
 	$(CC) $(CFLAGS) $<
 
-lzgdec.o: lzgdec.c lzg.h
+lzg.o: lzg.c lzg.h
+	$(CC) $(CFLAGS) $<
+
+unlzg.o: unlzg.c lzg.h
 	$(CC) $(CFLAGS) $<
 
 

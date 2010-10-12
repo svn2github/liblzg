@@ -94,6 +94,29 @@
 */
 
 /**
+* Determine the maximum size of the encoded data for a given uncompressed
+* buffer.
+* @param[in] insize Size of the uncompressed buffer (number of bytes).
+* @return Worst case (maximum) size of the encoded data.
+*/
+unsigned int LZG_MaxEncodedSize(unsigned int insize);
+
+
+/**
+* Decode LZG coded data.
+* @param[in]  in Input (uncompressed) buffer.
+* @param[in]  insize Size of the input buffer (number of bytes).
+* @param[out] out Output (compressed) buffer.
+* @param[in]  outsize Size of the output buffer (number of bytes).
+* @return The size of the encoded data, or zero if the function failed
+*         (e.g. if the end of the output buffer was reached before the
+*         entire input buffer was encoded).
+*/
+unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
+                        unsigned char *out, unsigned int outsize);
+
+
+/**
 * Determine the size of the decoded data for a given LZG coded buffer.
 * @param[in] in Input (compressed) buffer.
 * @param[in] insize Size of the input buffer (number of bytes).
