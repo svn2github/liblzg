@@ -32,49 +32,56 @@
 int main(int argc, char **argv)
 {
     FILE *inFile, *outFile;
+    size_t fileSize;
     unsigned char *encBuf;
     unsigned int encSize;
     unsigned char *decBuf;
     unsigned int decSize;
+    int useStdout = 0;
 
     // Check arguments
-    if (argc != 3)
+    if ((argc < 2) || (argc > 3))
     {
-        printf("Usage: %s infile outfile\n", argv[0]);
+        fprintf(stderr, "Usage: %s infile [outfile]\n", argv[0]);
+        fprintf(stderr, "If no output file is given, stdout is used for output.\n");
         return 0;
     }
 
+    // Use stdout?
+    if (argc < 3)
+        useStdout = 1;
+
     // Read input file
-    printf("Loading from \"%s\".\n", argv[1]);
     encBuf = (unsigned char*) 0;
     inFile = fopen(argv[1], "rb");
     if (inFile)
     {
         fseek(inFile, 0, SEEK_END);
-        encSize = (unsigned int) ftell(inFile);
+        fileSize = ftell(inFile);
         fseek(inFile, 0, SEEK_SET);
-        if (encSize > 0)
+        if (fileSize > 0)
         {
+            encSize = (unsigned int) fileSize;
             encBuf = (unsigned char*) malloc(encSize);
             if (encBuf)
             {
                 if (fread(encBuf, 1, encSize, inFile) != encSize)
                 {
-                    printf("Error reading \"%s\".\n", argv[1]);
+                    fprintf(stderr, "Error reading \"%s\".\n", argv[1]);
                     free(encBuf);
                     encBuf = (unsigned char*) 0;
                 }
             }
             else
-                printf("Out of memory.\n");
+                fprintf(stderr, "Out of memory.\n");
         }
         else
-            printf("Input file is empty.\n");
+            fprintf(stderr, "Input file is empty.\n");
 
         fclose(inFile);
     }
     else
-        printf("Unable to open file \"%s\".\n", argv[1]);
+        fprintf(stderr, "Unable to open file \"%s\".\n", argv[1]);
 
     if (!encBuf)
         return 0;
@@ -88,36 +95,41 @@ int main(int argc, char **argv)
         if (decBuf)
         {
             // Decompress
-            printf("Decompressing to %d bytes.", decSize);
             decSize = LZG_Decode(encBuf, encSize, decBuf, decSize);
             if (decSize)
             {
                 // Uncompressed data is now in decBuf, write it...
-                printf("Saving to \"%s\".\n", argv[2]);
-                outFile = fopen(argv[2], "wb");
+                if (!useStdout)
+                {
+                    outFile = fopen(argv[2], "wb");
+                    if (!outFile)
+                        fprintf(stderr, "Unable to open file \"%s\".\n", argv[2]);
+                }
+                else
+                    outFile = stdout;
+
                 if (outFile)
                 {
                     // Write data
                     if (fwrite(decBuf, 1, decSize, outFile) != decSize)
-                        printf("Error writing \"%s\".\n", argv[2]);
+                        fprintf(stderr, "Error writing to output file.\n");
 
                     // Close file
-                    fclose(outFile);
+                    if (!useStdout)
+                        fclose(outFile);
                 }
-                else
-                    printf("Unable to open file \"%s\".\n", argv[2]);
             }
             else
-                printf("Decompression failed (bad data)!\n");
+                fprintf(stderr, "Decompression failed (bad data)!\n");
 
             // Free memory when we're done with the decompressed data
             free(decBuf);
         }
         else
-            printf("Out of memory!\n");
+            fprintf(stderr, "Out of memory!\n");
     }
     else
-        printf("Bad input data!\n");
+        fprintf(stderr, "Bad input data!\n");
 
     // Free memory
     free(encBuf);
