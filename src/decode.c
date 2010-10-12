@@ -25,29 +25,26 @@
 *    distribution.
 */
 
+#include "internal.h"
+
 
 /*-- PRIVATE -----------------------------------------------------------------*/
-
-#define LZG_HEADER_SIZE 16
-
-typedef struct _lzg_header {
-  unsigned int encodedSize;
-  unsigned int decodedSize;
-  unsigned int checksum;
-} lzg_header;
-
-unsigned int _LZG_CalcChecksum(const unsigned char *in, unsigned int insize);
 
 static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
   lzg_header *hdr)
 {
     /* Bad input buffer? */
     if (insize < LZG_HEADER_SIZE)
-        return 0;
+        return FALSE;
 
     /* Check magic number */
-    if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G') || (in[3] != 1))
-        return 0;
+    if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
+        return FALSE;
+
+    /* Check which method is used */
+    hdr->method = in[3];
+    if (hdr->method > LZG_METHOD_LZG1)
+        return FALSE;
 
     /* Get & check input buffer size */
     hdr->encodedSize = (((unsigned int)in[4]) << 24) |
@@ -55,7 +52,7 @@ static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
                        (((unsigned int)in[6]) << 8) |
                        ((unsigned int)in[7]);
     if (hdr->encodedSize != (insize - LZG_HEADER_SIZE))
-        return 0;
+        return FALSE;
 
     /* Get output buffer size */
     hdr->decodedSize = (((unsigned int)in[8]) << 24) |
@@ -69,9 +66,9 @@ static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
                     (((unsigned int)in[14]) << 8) |
                     ((unsigned int)in[15]);
     if (_LZG_CalcChecksum(&in[LZG_HEADER_SIZE], hdr->encodedSize) != hdr->checksum)
-        return 0;
+        return FALSE;
 
-    return 1;
+    return TRUE;
 }
 
 
@@ -88,10 +85,10 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
     return hdr.decodedSize;
 }
 
-unsigned int LZG_Decode(const unsigned char *in, unsigned char *out,
-    unsigned int insize, unsigned int outsize)
+unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
+    unsigned char *out, unsigned int outsize)
 {
-    unsigned char *in_pos, *in_end, *out_pos, *out_end, *copy, symbol, b;
+    unsigned char *src, *in_end, *dst, *out_end, *copy, symbol, b;
     unsigned char copy3marker, copy4marker, copyNmarker;
     unsigned int  i, length, offset;
     lzg_header hdr;
@@ -109,110 +106,118 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned char *out,
         return 0;
 
     /* Initialize the byte streams */
-    in_pos = (unsigned char *)in;
+    src = (unsigned char *)in;
     in_end = ((unsigned char *)in) + insize;
-    out_pos = out;
+    dst = out;
     out_end = out + outsize;
 
     /* Skip header information */
-    in_pos += LZG_HEADER_SIZE;
+    src += LZG_HEADER_SIZE;
+
+    /* Plain copy? */
+    if (hdr.method == LZG_METHOD_COPY)
+    {
+        if (hdr.decodedSize != hdr.encodedSize)
+            return 0;
+
+        /* Copy 1:1, input buffer to output buffer */
+        for (i = hdr.decodedSize - 1; i > 0; --i)
+            *dst++ = *src++;
+
+        return hdr.decodedSize;
+    }
 
     /* Get marker symbols from the input stream */
-    copy3marker = *in_pos++;
-    copy4marker = *in_pos++;
-    copyNmarker = *in_pos++;
+    copy3marker = *src++;
+    copy4marker = *src++;
+    copyNmarker = *src++;
 
     /* Main decompression loop */
-    while (in_pos < in_end)
+    while (src < in_end)
     {
-        if (out_pos >= out_end) return 0;
+        if (dst >= out_end) return 0;
 
         /* Get the next symbol */
-        symbol = *in_pos++;
+        symbol = *src++;
 
-        /* COPY-3/COPY-4-marker: Copy three/four bytes */
-        if ((symbol == copy3marker) || (symbol == copy4marker))
+        /* Copy marker */
+        if ((symbol == copy3marker) ||
+            (symbol == copy4marker) ||
+            (symbol == copyNmarker))
         {
-            /* Get offset (1..255) */
-            if (in_pos >= in_end) return 0;
-            offset = *in_pos++;
-            if (offset > 0)
+            if (src >= in_end) return 0;
+            b = *src++;
+
+            if (b > 0)
             {
-                /* Copy three/four bytes */
+                /* Decode offset / length parameters */
                 if (symbol == copy3marker)
-                  length = 3;
-                else
-                  length = 4;
-                if ((out_pos + length) > out_end) return 0;
-
-                /* Copy corresponding data from history window */
-                copy = out_pos - offset;
-                if (copy < out) return 0;
-                for (i = 0; i < length; ++i)
-                    *out_pos++ = *copy++;
-            }
-            else
-            {
-                /* ...single occurance of the marker symbol */
-                *out_pos++ = symbol;
-            }
-        }
-
-        /* COPY-N-marker: Copy variable number of bytes */
-        else if (symbol == copyNmarker)
-        {
-            /* Get length */
-            if (in_pos >= in_end) return 0;
-            length = *in_pos++;
-            if (length > 0)
-            {
-                /* Copy at least four bytes (4..258) */
-                length += 3;
-                if ((out_pos + length) > out_end) return 0;
-
-                /* Decode offset using varying size coding:
-                   1-128:         1 byte
-                   129-16384:     2 bytes
-                   16385-4194304: 3 bytes
-                */
-                b = *in_pos++;
-                offset = (unsigned int) (b & 0x7f);
-                if (b >= 0x80)
                 {
-                    if (in_pos >= in_end) return 0;
-                    b = *in_pos++;;
-                    offset = (offset << 7) | (unsigned int) (b & 0x7f);
+                    /* Copy 3 bytes */
+                    length = 3;
+
+                    /* Offset is in the range 1..254 */
+                    offset = (unsigned int) b;
+                }
+                else if  (symbol == copy4marker)
+                {
+                    /* Copy 4 bytes */
+                    length = 4;
+
+                    /* Offset is in the range 1..254 */
+                    offset = (unsigned int) b;
+                }
+                else
+                {
+                    /* Copy at least 4 bytes */
+                    length = (unsigned int) b + 3;
+
+                    /* Decode offset using varying size coding:
+                       1-128:         1 byte
+                       129-16384:     2 bytes
+                       16385-4194304: 3 bytes
+                    */
+                    b = *src++;
+                    offset = (unsigned int) (b & 0x7f);
                     if (b >= 0x80)
                     {
-                        if (in_pos >= in_end) return 0;
-                        b = *in_pos++;;
-                        offset = (offset << 8) | (unsigned int) b;
+                        if (src >= in_end) return 0;
+                        b = *src++;;
+                        offset = (offset << 7) | (unsigned int) (b & 0x7f);
+                        if (b >= 0x80)
+                        {
+                            if (src >= in_end) return 0;
+                            b = *src++;;
+                            offset = (offset << 8) | (unsigned int) b;
+                        }
                     }
+                    offset++;
                 }
-                offset++;
+
+                if ((dst + length) > out_end) return 0;
 
                 /* Copy corresponding data from history window */
-                copy = out_pos - offset;
+                copy = dst - offset;
                 if (copy < out) return 0;
                 for (i = 0; i < length; ++i)
-                    *out_pos++ = *copy++;
+                    *dst++ = *copy++;
             }
             else
             {
                 /* ...single occurance of the marker symbol */
-                *out_pos++ = symbol;
+                *dst++ = symbol;
             }
         }
 
         /* No marker, plain copy... */
         else
         {
-            *out_pos++ = symbol;
+            *dst++ = symbol;
         }
     }
 
     /* Did we get the right number of output bytes? */
-    if ((out_pos - out) != hdr.decodedSize)
+    if ((dst - out) != hdr.decodedSize)
         return 0;
 
     /* Return size of decompressed buffer */

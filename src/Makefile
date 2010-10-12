@@ -28,17 +28,21 @@
 # Compiler and linker settings
 CC = gcc
 CFLAGS = -c -O3 -funroll-loops -W -Wall
+LC = gcc
+LFLAGS = -L.
+LIBS = -llzg
 AR = ar
-LFLAGS = -rc
+ARFLAGS = -rc
 RM = rm -f
 
 # Files
 STATIC_LIB = liblzg.a
+LZGDEC = lzgdec
 OBJS = decode.o \
        checksum.o
 
 # Master rule
-all: $(STATIC_LIB)
+all: $(STATIC_LIB) $(LZGDEC)
 
 # Clean rule
 clean:
@@ -46,12 +50,20 @@ clean:
 
 # Library build rule
 $(STATIC_LIB): $(OBJS)
-	$(AR) $(LFLAGS) -o $@ $(OBJS)
+	$(AR) $(ARFLAGS) -o $@ $(OBJS)
+
+# Program build rules
+$(LZGDEC): lzgdec.o $(STATIC_LIB) 
+	$(LC) $(LFLAGS) -o $@ lzgdec.o $(LIBS)
 
 # Object files build rules
-decode.o: decode.c
+decode.o: decode.c internal.h lzg.h
 	$(CC) $(CFLAGS) $<
 
 checksum.o: checksum.c
 	$(CC) $(CFLAGS) $<
+
+lzgdec.o: lzgdec.c lzg.h
+	$(CC) $(CFLAGS) $<
+
 

@@ -48,6 +48,49 @@
 * @li LZG_DecodedSize() - Determine the size of the decoded data for a given
 *                         LZG coded buffer.
 * @li LZG_Decode() - Decode LZG coded data.
+*
+* @section compr_sec Compression
+* Here is a simple example of compressing a data buffer.
+*
+* @code
+*   TBD
+* @endcode
+*
+* @section decompr_sec Decompression
+* Here is a simple example of decompressing a compressed data buffer (given
+* as buf/bufSize).
+*
+* @code
+*   unsigned char *decBuf;
+*   unsigned int decSize;
+*
+*   // Determine size of decompressed data
+*   decSize = LZG_DecodedSize(buf, bufSize);
+*   if (decSize)
+*   {
+*     // Allocate memory for the decompressed data
+*     decBuf = (unsigned char*) malloc(decSize);
+*     if (decBuf)
+*     {
+*       // Decompress
+*       decSize = LZG_Decode(buf, bufSize, decBuf, decSize);
+*       if (decSize)
+*       {
+*         // Uncompressed data is now in decBuf, use it...
+*         // ...
+*       }
+*       else
+*         printf("Decompression failed (bad data)!\n");
+*
+*       // Free memory when we're done with the decompressed data
+*       free(decBuf);
+*     }
+*     else
+*       printf("Out of memory!\n");
+*   }
+*   else
+*     printf("Bad input data!\n");
+* @endcode
 */
 
 /**
@@ -63,15 +106,15 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize);
 /**
 * Decode LZG coded data.
 * @param[in]  in Input (compressed) buffer.
-* @param[out] out Output (uncompressed) buffer.
 * @param[in]  insize Size of the input buffer (number of bytes).
+* @param[out] out Output (uncompressed) buffer.
 * @param[in]  outsize Size of the output buffer (number of bytes).
 * @return The size of the decoded data, or zero if the function failed
 *         (e.g. if the end of the output buffer was reached before the
 *         entire input buffer was decoded).
 */
-unsigned int LZG_Decode(const unsigned char *in, unsigned char *out,
-                        unsigned int insize, unsigned int outsize);
+unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
+                        unsigned char *out, unsigned int outsize);
 
 
 #endif // _LIBLZG_H_
