@@ -153,7 +153,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                     /* Copy 3 bytes */
                     length = 3;
 
-                    /* Offset is in the range 1..254 */
+                    /* Offset is in the range 1..255 */
                     offset = (unsigned int) b;
                 }
                 else if  (symbol == copy4marker)
@@ -161,7 +161,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                     /* Copy 4 bytes */
                     length = 4;
 
-                    /* Offset is in the range 1..254 */
+                    /* Offset is in the range 1..255 */
                     offset = (unsigned int) b;
                 }
                 else

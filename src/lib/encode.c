@@ -32,6 +32,9 @@
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
+#define LZG_MAX_OFFSET 100000
+
+
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
     /* Magic number */
@@ -109,6 +112,55 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
     return TRUE;
 }
 
+static unsigned int _LZG_FindMatch(const unsigned char *first,
+  const unsigned char *end, const unsigned char *pos, unsigned int maxOffset,
+  unsigned int *offset)
+{
+    unsigned int length, bestLength = 2;
+    int win, bestWin = 0;
+    unsigned char *cmp1, *cmp2;
+    unsigned int i;
+
+    /* Try all offsets */
+    for (i = 1; i <= maxOffset; ++i)
+    {
+        /* Calculate maximum match length for this offset */
+        cmp1 = (unsigned char*) pos;
+        cmp2 = cmp1 - i;
+        if (cmp2 < first) break;
+        length = 0;
+        while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < 255)) ++length;
+
+        /* Improvement in match length? */
+        if (length > bestLength)
+        {
+            /* Get actual compression win for this match */
+            if ((length <= 4) && (i <= 255))
+                win = length - 2;
+            else
+            {
+                win = length - 3;
+                if (i >= 129) --win;
+                if (i >= 16385) --win;
+            }
+
+            /* Best so far? */
+            if (win > bestWin)
+            {
+                bestWin = win;
+                *offset = i;
+                bestLength = length;
+            }
+        }
+    }
+
+    /* Did we get a match that would actually compress? */
+    if (bestWin > 0)
+        return bestLength;
+    else
+        return 0;
+}
+
 
 /*-- PUBLIC ------------------------------------------------------------------*/
 
@@ -120,8 +172,9 @@ unsigned int LZG_MaxEncodedSize(unsigned int insize)
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     unsigned char *out, unsigned int outsize)
 {
-    unsigned char *src, *in_end, *dst, *out_end;
+    unsigned char *src, *in_end, *dst, *out_end, symbol;
     unsigned char copy3marker, copy4marker, copyNmarker;
+    unsigned int length, offset = 0;
     lzg_header hdr;
 
     /* Too small output buffer? */
@@ -152,8 +205,67 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     {
         if (dst >= out_end) return 0;
 
-        /* FIXME */
-        src++;
+        /* Find best history match for this position in the input buffer */
+        length = _LZG_FindMatch(in, in_end, src, LZG_MAX_OFFSET, &offset);
+        if (length > 0)
+        {
+            if ((length == 3) && (offset <= 255))
+            {
+                /* Copy 3 bytes, short offset */
+                if ((dst + 2) > out_end) return 0;
+                *dst++ = copy3marker;
+                *dst++ = offset;
+            }
+            else if ((length == 4) && (offset <= 255))
+            {
+                /* Copy 4 bytes, short offset */
+                if ((dst + 2) > out_end) return 0;
+                *dst++ = copy4marker;
+                *dst++ = offset;
+            }
+            else
+            {
+                /* Copy variable number of bytes, any offset */
+                if ((dst + 2) > out_end) return 0;
+                *dst++ = copyNmarker;
+                *dst++ = length;
+                --offset;
+                if (offset >= 16384)
+                {
+                    if ((dst + 3) > out_end) return 0;
+                    *dst++ = (offset >> 14) | 0x80;
+                    *dst++ = (offset >> 7) | 0x80;
+                    *dst++ = offset;
+                }
+                else if (offset >= 128)
+                {
+                    if ((dst + 2) > out_end) return 0;
+                    *dst++ = (offset >> 7) | 0x80;
+                    *dst++ = offset;
+                }
+                else
+                {
+                    if (dst >= out_end) return 0;
+                    *dst++ = offset;
+                }
+            }
+            src++;
+        }
+        else
+        {
+            /* Plain copy */
+            symbol = *src++;
+            *dst++ = symbol;
+
+            /* Was this symbol equal to any of the markers? */
+            if ((symbol == copy3marker) ||
+                (symbol == copy4marker) ||
+                (symbol == copyNmarker))
+            {
+                if (dst >= out_end) return 0;
+                *dst++ = 0;
+            }
+        }
     }
 
     /* Set header data */
