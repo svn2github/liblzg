@@ -132,8 +132,6 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     /* Main decompression loop */
     while (src < in_end)
     {
-        if (dst >= out_end) return 0;
-
         /* Get the next symbol */
         symbol = *src++;
 
@@ -192,17 +190,16 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                     offset++;
                 }
 
-                if ((dst + length) > out_end) return 0;
-
                 /* Copy corresponding data from history window */
                 copy = dst - offset;
-                if (copy < out) return 0;
+                if ((copy < out) || ((dst + length) > out_end)) return 0;
                 for (i = 0; i < length; ++i)
                     *dst++ = *copy++;
             }
             else
             {
                 /* ...single occurance of the marker symbol */
+                if (dst >= out_end) return 0;
                 *dst++ = symbol;
             }
         }
