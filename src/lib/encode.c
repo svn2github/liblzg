@@ -234,9 +234,9 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                 if (offset >= 16384)
                 {
                     if ((dst + 3) > out_end) return 0;
-                    *dst++ = (offset >> 14) | 0x80;
-                    *dst++ = (offset >> 7) | 0x80;
-                    *dst++ = offset & 0x7f;
+                    *dst++ = (offset >> 15) | 0x80;
+                    *dst++ = (offset >> 8) | 0x80;
+                    *dst++ = offset;
                 }
                 else if (offset >= 128)
                 {
