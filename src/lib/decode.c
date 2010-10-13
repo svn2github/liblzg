@@ -174,6 +174,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                        129-16384:     2 bytes
                        16385-4194304: 3 bytes
                     */
+                    if (src >= in_end) return 0;
                     b = *src++;
                     offset = (unsigned int) (b & 0x7f);
                     if (b >= 0x80)
@@ -214,7 +215,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     }
 
     /* Did we get the right number of output bytes? */
-    if ((dst - out) != hdr.decodedSize)
+    if ((unsigned int)(dst - out) != hdr.decodedSize)
         return 0;
 
     /* Return size of decompressed buffer */
