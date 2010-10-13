@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     FILE *inFile, *outFile;
     size_t fileSize;
     unsigned char *encBuf;
-    unsigned int encSize;
+    unsigned int encSize = 0;
     unsigned char *decBuf;
     unsigned int decSize;
     int useStdout = 0;

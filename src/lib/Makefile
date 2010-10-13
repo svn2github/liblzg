@@ -29,7 +29,7 @@
 CC = gcc
 CFLAGS = -c -g -O3 -funroll-loops -W -Wall
 AR = ar
-ARFLAGS = -rc
+ARFLAGS = -rcs
 RM = rm -f
 
 # Files
@@ -47,7 +47,7 @@ clean:
 
 # Library build rule
 $(STATIC_LIB): $(OBJS)
-	$(AR) $(ARFLAGS) -o $@ $(OBJS)
+	$(AR) $(ARFLAGS) $@ $(OBJS)
 
 # Object files build rules
 encode.o: encode.c internal.h ../include/lzg.h
