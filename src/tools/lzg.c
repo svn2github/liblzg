@@ -89,12 +89,12 @@ int main(int argc, char **argv)
     // Determine maximum size of compressed data
     maxEncSize = LZG_MaxEncodedSize(decSize);
 
-    // Allocate memory for the decompressed data
+    // Allocate memory for the compressed data
     encBuf = (unsigned char*) malloc(maxEncSize);
-    if (decBuf)
+    if (encBuf)
     {
         // Compress
-        encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize);
+        encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize, NULL, NULL);
         if (encSize)
         {
             // Compressed data is now in encBuf, write it...

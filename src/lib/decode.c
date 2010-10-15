@@ -41,19 +41,19 @@ static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
     if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
         return FALSE;
 
-    /* Get & check input buffer size */
-    hdr->encodedSize = (((unsigned int)in[3]) << 24) |
+    /* Get output buffer size */
+    hdr->decodedSize = (((unsigned int)in[3]) << 24) |
                        (((unsigned int)in[4]) << 16) |
                        (((unsigned int)in[5]) << 8) |
                        ((unsigned int)in[6]);
-    if (hdr->encodedSize != (insize - LZG_HEADER_SIZE))
-        return FALSE;
 
-    /* Get output buffer size */
-    hdr->decodedSize = (((unsigned int)in[7]) << 24) |
+    /* Get & check input buffer size */
+    hdr->encodedSize = (((unsigned int)in[7]) << 24) |
                        (((unsigned int)in[8]) << 16) |
                        (((unsigned int)in[9]) << 8) |
                        ((unsigned int)in[10]);
+    if (hdr->encodedSize != (insize - LZG_HEADER_SIZE))
+        return FALSE;
 
     /* Get & check checksum */
     hdr->checksum = (((unsigned int)in[11]) << 24) |
@@ -76,13 +76,18 @@ static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
 
 unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
 {
-    lzg_header hdr;
-
-    /* Get/check header info (including checksum operation) */
-    if (!_LZG_GetHeader(in, insize, &hdr))
+    if (insize < 7)
         return 0;
 
-    return hdr.decodedSize;
+    /* Check magic number */
+    if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
+        return FALSE;
+
+    /* Get output buffer size */
+    return (((unsigned int)in[3]) << 24) |
+           (((unsigned int)in[4]) << 16) |
+           (((unsigned int)in[5]) << 8) |
+           ((unsigned int)in[6]);
 }
 
 unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,

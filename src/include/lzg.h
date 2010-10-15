@@ -50,10 +50,35 @@
 * @li LZG_Decode() - Decode LZG coded data.
 *
 * @section compr_sec Compression
-* Here is a simple example of compressing a data buffer.
+* Here is a simple example of compressing an uncompressed data buffer (given
+* as buf/bufSize).
 *
 * @code
-*   TBD
+*   unsigned char *encBuf;
+*   unsigned int encSize, maxEncSize;
+*
+*    // Determine maximum size of compressed data
+*    maxEncSize = LZG_MaxEncodedSize(bufSize);
+*
+*    // Allocate memory for the compressed data
+*    encBuf = (unsigned char*) malloc(maxEncSize);
+*    if (encBuf)
+*    {
+*        // Compress
+*        encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, NULL, NULL);
+*        if (encSize)
+*        {
+*            // Compressed data is now in encBuf, use it...
+*            // ...
+*        }
+*        else
+*            fprintf(stderr, "Compression failed!\n");
+*
+*        // Free memory when we're done with the compressed data
+*        free(encBuf);
+*    }
+*    else
+*        fprintf(stderr, "Out of memory!\n");
 * @endcode
 *
 * @section decompr_sec Decompression
@@ -61,35 +86,35 @@
 * as buf/bufSize).
 *
 * @code
-*   unsigned char *decBuf;
-*   unsigned int decSize;
+*     unsigned char *decBuf;
+*     unsigned int decSize;
 *
-*   // Determine size of decompressed data
-*   decSize = LZG_DecodedSize(buf, bufSize);
-*   if (decSize)
-*   {
-*     // Allocate memory for the decompressed data
-*     decBuf = (unsigned char*) malloc(decSize);
-*     if (decBuf)
+*     // Determine size of decompressed data
+*     decSize = LZG_DecodedSize(buf, bufSize);
+*     if (decSize)
 *     {
-*       // Decompress
-*       decSize = LZG_Decode(buf, bufSize, decBuf, decSize);
-*       if (decSize)
-*       {
-*         // Uncompressed data is now in decBuf, use it...
-*         // ...
-*       }
-*       else
-*         printf("Decompression failed (bad data)!\n");
+*         // Allocate memory for the decompressed data
+*         decBuf = (unsigned char*) malloc(decSize);
+*         if (decBuf)
+*         {
+*             // Decompress
+*             decSize = LZG_Decode(buf, bufSize, decBuf, decSize);
+*             if (decSize)
+*             {
+*                 // Uncompressed data is now in decBuf, use it...
+*                 // ...
+*             }
+*             else
+*                 printf("Decompression failed (bad data)!\n");
 *
-*       // Free memory when we're done with the decompressed data
-*       free(decBuf);
+*             // Free memory when we're done with the decompressed data
+*             free(decBuf);
+*         }
+*         else
+*             printf("Out of memory!\n");
 *     }
 *     else
-*       printf("Out of memory!\n");
-*   }
-*   else
-*     printf("Bad input data!\n");
+*         printf("Bad input data!\n");
 * @endcode
 */
 
@@ -101,27 +126,41 @@
 */
 unsigned int LZG_MaxEncodedSize(unsigned int insize);
 
+/**
+* Progress callback function.
+* @param[in] progress The current progress (0-100).
+* @param[in] userdata User supplied data pointer.
+*/
+typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
 
 /**
-* Decode LZG coded data.
+* Encode uncomopressed data using the LZG coder (i.e. compress the data).
 * @param[in]  in Input (uncompressed) buffer.
 * @param[in]  insize Size of the input buffer (number of bytes).
 * @param[out] out Output (compressed) buffer.
 * @param[in]  outsize Size of the output buffer (number of bytes).
+* @param[in]  progressfun Encoding progress callback function (set this to NULL
+*             to disable progress callback).
+* @param[in]  userdata User data pointer for the progress callback function
+*             (this can set to NULL).
 * @return The size of the encoded data, or zero if the function failed
 *         (e.g. if the end of the output buffer was reached before the
 *         entire input buffer was encoded).
 */
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-                        unsigned char *out, unsigned int outsize);
+                        unsigned char *out, unsigned int outsize,
+                        LZGPROGRESSFUN progressfun, void *userdata);
 
 
 /**
 * Determine the size of the decoded data for a given LZG coded buffer.
 * @param[in] in Input (compressed) buffer.
-* @param[in] insize Size of the input buffer (number of bytes).
+* @param[in] insize Size of the input buffer (number of bytes). This does
+*            not have to be the size of the entire compressed data, but
+*            it has to be at least 7 bytes (the first few bytes of the
+*            header, including the decompression size).
 * @return The size of the decoded data, or zero if the function failed
-*         (e.g. if the data integrity check failed).
+*         (e.g. if the magic header ID could not be found).
 */
 unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize);
 

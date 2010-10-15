@@ -42,17 +42,17 @@ static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
     out[1] = 'Z';
     out[2] = 'G';
 
-    /* Input buffer size */
-    out[3] = hdr->encodedSize >> 24;
-    out[4] = hdr->encodedSize >> 16;
-    out[5] = hdr->encodedSize >> 8;
-    out[6] = hdr->encodedSize;
+    /* Decoded buffer size */
+    out[3] = hdr->decodedSize >> 24;
+    out[4] = hdr->decodedSize >> 16;
+    out[5] = hdr->decodedSize >> 8;
+    out[6] = hdr->decodedSize;
 
-    /* Output buffer size */
-    out[7] = hdr->decodedSize >> 24;
-    out[8] = hdr->decodedSize >> 16;
-    out[9] = hdr->decodedSize >> 8;
-    out[10] = hdr->decodedSize;
+    /* Encoded buffer size */
+    out[7] = hdr->encodedSize >> 24;
+    out[8] = hdr->encodedSize >> 16;
+    out[9] = hdr->encodedSize >> 8;
+    out[10] = hdr->encodedSize;
 
     /* Checksum */
     hdr->checksum = _LZG_CalcChecksum(&out[LZG_HEADER_SIZE], hdr->encodedSize);
@@ -168,17 +168,17 @@ static unsigned int _LZG_FindMatch(const unsigned char *first,
 
 unsigned int LZG_MaxEncodedSize(unsigned int insize)
 {
-    return insize + ((insize + 63) / 64) + LZG_HEADER_SIZE + 3;
+    return insize + ((insize + 63) / 64) + LZG_HEADER_SIZE + 4;
 }
 
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-    unsigned char *out, unsigned int outsize)
+    unsigned char *out, unsigned int outsize, LZGPROGRESSFUN progressfun,
+    void *userdata)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
     unsigned int length, rleLength, maxRleLength, offset = 0, symbolCost;
-    int rleWin;
-    int isMarkerSymbol;
+    int rleWin, isMarkerSymbol, progress, oldProgress = -1;
     lzg_header hdr;
 
     /* Too small output buffer? */
@@ -212,6 +212,17 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     /* Main compression loop */
     while (src < inEnd)
     {
+        /* Report progress? */
+        if (progressfun)
+        {
+            progress = (100 * (src - in)) / insize;
+            if (progress != oldProgress)
+            {
+                progressfun(progress, userdata);
+                oldProgress = progress;
+            }
+        }
+
         /* Is the compressed data larger than the uncompressed data? */
         if ((dst - out) > (inEnd - in))
         {
@@ -315,6 +326,10 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
             }
         }
     }
+
+    /* Report progress? (we're done now) */
+    if (progressfun)
+        progressfun(100, userdata);
 
     /* Set header data */
     hdr.encodedSize = (dst - out) - LZG_HEADER_SIZE;

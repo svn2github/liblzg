@@ -27,7 +27,7 @@
 
 # Compiler and linker settings
 CC = gcc
-CFLAGS = -c -g -O3 -W -Wall -I../include
+CFLAGS = -c -O3 -W -Wall -I../include
 LC = gcc
 LFLAGS = -L../lib
 LIBS = -llzg
