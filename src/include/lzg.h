@@ -65,7 +65,7 @@
 *    if (encBuf)
 *    {
 *        // Compress
-*        encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, NULL, NULL);
+*        encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, LZG_LEVEL_DEFAULT, NULL, NULL);
 *        if (encSize)
 *        {
 *            // Compressed data is now in encBuf, use it...
@@ -118,6 +118,19 @@
 * @endcode
 */
 
+#define LZG_LEVEL_1 1024    /**< @brief Lowest/fastest compression level */
+#define LZG_LEVEL_2 8192    /**< @brief Compression level 2 */
+#define LZG_LEVEL_3 16384   /**< @brief Compression level 3 */
+#define LZG_LEVEL_4 32768   /**< @brief Compression level 4 */
+#define LZG_LEVEL_5 65536   /**< @brief Medium compression level */
+#define LZG_LEVEL_6 131072  /**< @brief Compression level 6 */
+#define LZG_LEVEL_7 262144  /**< @brief Compression level 7 */
+#define LZG_LEVEL_8 524288  /**< @brief Compression level 8 */
+#define LZG_LEVEL_9 1048576 /**< @brief Best/slowest compression level */
+
+/** @brief Default compression level */
+#define LZG_LEVEL_DEFAULT LZG_LEVEL_5
+
 /**
 * Determine the maximum size of the encoded data for a given uncompressed
 * buffer.
@@ -139,6 +152,10 @@ typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
 * @param[in]  insize Size of the input buffer (number of bytes).
 * @param[out] out Output (compressed) buffer.
 * @param[in]  outsize Size of the output buffer (number of bytes).
+* @param[in]  window Compression search window (bigger is better and slower).
+*             For convenience, you can use the predefined constants
+*             @ref LZG_LEVEL_1 (fast) to @ref LZG_LEVEL_9 (slow), or
+*             @ref LZG_LEVEL_DEFAULT.
 * @param[in]  progressfun Encoding progress callback function (set this to NULL
 *             to disable progress callback).
 * @param[in]  userdata User data pointer for the progress callback function
@@ -149,7 +166,8 @@ typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
 */
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                         unsigned char *out, unsigned int outsize,
-                        LZGPROGRESSFUN progressfun, void *userdata);
+                        unsigned int window, LZGPROGRESSFUN progressfun,
+                        void *userdata);
 
 
 /**

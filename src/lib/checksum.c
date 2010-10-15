@@ -34,13 +34,13 @@ unsigned int _LZG_CalcChecksum(const unsigned char *data, unsigned int size)
 {
     unsigned int a = 1, b = 0;
     unsigned int i;
- 
+
     for (i = 0; i < size; ++i)
     {
         a = (a + data[i]) % 65521;
         b = (b + a) % 65521;
     }
- 
+
     return (b << 16) | a;
 }
 

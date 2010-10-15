@@ -32,9 +32,6 @@
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
-#define LZG_MAX_OFFSET 100000
-
-
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
     /* Magic number */
@@ -172,8 +169,8 @@ unsigned int LZG_MaxEncodedSize(unsigned int insize)
 }
 
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-    unsigned char *out, unsigned int outsize, LZGPROGRESSFUN progressfun,
-    void *userdata)
+    unsigned char *out, unsigned int outsize, unsigned int window,
+    LZGPROGRESSFUN progressfun, void *userdata)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
@@ -181,8 +178,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     int rleWin, isMarkerSymbol, progress, oldProgress = -1;
     lzg_header hdr;
 
-    /* Too small output buffer? */
-    if (outsize < LZG_HEADER_SIZE)
+    /* Check arguments */
+    if ((!in) || (!out) || (window < 10) || (outsize < LZG_HEADER_SIZE))
         return 0;
 
     /* Calculate histogram and find optimal marker symbols */
@@ -257,7 +254,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         rleWin = symbolCost + rleLength - 4;
 
         /* Find best history match for this position in the input buffer */
-        length = _LZG_FindMatch(in, inEnd, src, LZG_MAX_OFFSET, symbolCost,
+        length = _LZG_FindMatch(in, inEnd, src, window, symbolCost,
                                 rleWin, &offset);
         if (length > 0)
         {
