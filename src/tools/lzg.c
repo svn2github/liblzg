@@ -29,6 +29,14 @@
 #include <stdlib.h>
 #include <lzg.h>
 
+
+void ShowProgress(int progress, void *data)
+{
+    FILE *f = (FILE *)data;
+    fprintf(f, "Progress: %d%%   \r", progress);
+    fflush(f);
+}
+
 int main(int argc, char **argv)
 {
     FILE *inFile, *outFile;
@@ -94,9 +102,13 @@ int main(int argc, char **argv)
     if (encBuf)
     {
         // Compress
-        encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize, NULL, NULL);
+        encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize,
+                             ShowProgress, stderr);
         if (encSize)
         {
+            fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",
+                            encSize, (100 * encSize) / decSize);
+
             // Compressed data is now in encBuf, write it...
             if (!useStdout)
             {
