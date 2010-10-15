@@ -114,7 +114,7 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
 
 static unsigned int _LZG_FindMatch(const unsigned char *first,
   const unsigned char *end, const unsigned char *pos, unsigned int maxOffset,
-  unsigned int *offset)
+  unsigned int symbolCost, unsigned int *offset)
 {
     unsigned int length, bestLength = 2;
     int win, bestWin = 0;
@@ -137,10 +137,10 @@ static unsigned int _LZG_FindMatch(const unsigned char *first,
         {
             /* Get actual compression win for this match */
             if ((length <= 4) && (i <= 255))
-                win = length - 2;
+                win = symbolCost + length - 3;
             else
             {
-                win = length - 3;
+                win = symbolCost + length - 4;
                 if (i >= 129) --win;
                 if (i >= 16385) --win;
             }
@@ -175,7 +175,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 {
     unsigned char *src, *in_end, *dst, *out_end, symbol;
     unsigned char copy3marker, copy4marker, copyNmarker;
-    unsigned int length, offset = 0;
+    unsigned int length, offset = 0, symbolCost;
+    int isMarkerSymbol;
     lzg_header hdr;
 
     /* Too small output buffer? */
@@ -204,10 +205,19 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     /* Main compression loop */
     while (src < in_end)
     {
-        if (dst >= out_end) return 0;
+        /* Get current symbol (don't increment, yet) */
+        symbol = *src;
+
+        /* Is this a marker symbol? */
+        isMarkerSymbol = (symbol == copy3marker) ||
+                         (symbol == copy4marker) ||
+                         (symbol == copyNmarker);
+
+        /* What's the cost for this symbol if we do not compress */
+        symbolCost = isMarkerSymbol ? 2 : 1;
 
         /* Find best history match for this position in the input buffer */
-        length = _LZG_FindMatch(in, in_end, src, LZG_MAX_OFFSET, &offset);
+        length = _LZG_FindMatch(in, in_end, src, LZG_MAX_OFFSET, symbolCost, &offset);
         if (length > 0)
         {
             if ((length == 3) && (offset <= 255))
@@ -255,13 +265,12 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         else
         {
             /* Plain copy */
-            symbol = *src++;
+            if (dst >= out_end) return 0;
             *dst++ = symbol;
+            ++src;
 
             /* Was this symbol equal to any of the markers? */
-            if ((symbol == copy3marker) ||
-                (symbol == copy4marker) ||
-                (symbol == copyNmarker))
+            if (isMarkerSymbol)
             {
                 if (dst >= out_end) return 0;
                 *dst++ = 0;
