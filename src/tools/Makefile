@@ -25,21 +25,41 @@
 #    distribution.
 ################################################################################
 
-.PHONY: all clean build-library build-tools
+# Compiler and linker settings
+CC = gcc
+CFLAGS = -c -g -O3 -W -Wall -I../include
+LC = gcc
+LFLAGS = -L../lib
+LIBS = -llzg
+RM = rm -f
+
+# Files
+LZG = lzg
+UNLZG = unlzg
+LZG_OBJS = lzg.o
+UNLZG_OBJS = unlzg.o
+STATIC_LIB = ../lib/liblzg.a
+
+.PHONY: all clean
 
 # Master rule
-all: build-library build-tools
+all: $(LZG) $(UNLZG)
 
 # Clean rule
 clean:
-	cd lib && $(MAKE) clean
-	cd tools && $(MAKE) clean
+	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS)
 
-# Library build rule
-build-library:
-	cd lib && $(MAKE)
+# Program build rules
+$(LZG): $(LZG_OBJS) $(STATIC_LIB)
+	$(LC) $(LFLAGS) -o $@ $(LZG_OBJS) $(LIBS)
 
-# Tools build rule
-build-tools:
-	cd tools && $(MAKE)
+$(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB)
+	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
+
+# Object files build rules
+lzg.o: lzg.c ../include/lzg.h
+	$(CC) $(CFLAGS) $<
+
+unlzg.o: unlzg.c ../include/lzg.h
+	$(CC) $(CFLAGS) $<
 
