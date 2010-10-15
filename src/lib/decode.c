@@ -171,8 +171,8 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 }
                 else if (symbol == copyNMarker)
                 {
-                    /* Copy at least 4 bytes */
-                    length = (unsigned int) b + 3;
+                    /* Copy at least 3 bytes */
+                    length = (unsigned int) b + 2;
 
                     /* Decode offset using varying size coding:
                        1-128:         1 byte
@@ -198,8 +198,8 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 }
                 else /* rleMarker */
                 {
-                    /* Copy at least 3 bytes (excluding first symbol) */
-                    length = (unsigned int) b + 2;
+                    /* Copy at least 2 bytes (excluding first symbol) */
+                    length = (unsigned int) b + 1;
 
                     /* Offset is 1 (start copying at the first occurance of the
                        repeat symbol) */

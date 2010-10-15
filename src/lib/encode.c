@@ -131,7 +131,7 @@ static unsigned int _LZG_FindMatch(const unsigned char *first,
         cmp2 = cmp1 - i;
         if (cmp2 < first) break;
         length = 0;
-        while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < 255)) ++length;
+        while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < 257)) ++length;
 
         /* Improvement in match length? */
         if (length > bestLength)
@@ -249,8 +249,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 
         /* First check how good RLE we can do */
         maxRleLength = inEnd - src;
-        if (maxRleLength > 258)
-            maxRleLength = 258;
+        if (maxRleLength > 257)
+            maxRleLength = 257;
         rleLength = 1;
         while ((rleLength < maxRleLength) && (src[rleLength] == symbol))
             ++rleLength;
@@ -280,7 +280,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                 /* Copy variable number of bytes, any offset */
                 if ((dst + 2) > outEnd) return 0;
                 *dst++ = copyNMarker;
-                *dst++ = length - 3;
+                *dst++ = length - 2;
                 --offset;
                 if (offset >= 16384)
                 {
@@ -307,7 +307,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         {
             if ((dst + 3) > outEnd) return 0;
             *dst++ = rleMarker;
-            *dst++ = rleLength - 3;
+            *dst++ = rleLength - 2;
             *dst++ = symbol;
             src += rleLength;
         }
