@@ -111,8 +111,8 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
 }
 
 typedef struct _search_accel {
-    unsigned int *tab;
-    unsigned int *last;
+    unsigned char **tab;
+    unsigned char **last;
     unsigned int window;
 } search_accel;
 
@@ -127,7 +127,7 @@ static search_accel* _LZG_SearchAccel_Create(unsigned int window)
         return (search_accel*) 0;
 
     /* Allocate memory for the table */
-    self->tab = malloc(sizeof(unsigned int) * window);
+    self->tab = malloc(sizeof(unsigned char *) * window);
     if (!self->tab)
     {
         free(self);
@@ -135,7 +135,7 @@ static search_accel* _LZG_SearchAccel_Create(unsigned int window)
     }
 
     /* Allocate memory for the "last symbol occurance" array */
-    self->last = malloc(sizeof(unsigned int) * 65536);
+    self->last = malloc(sizeof(unsigned char *) * 65536);
     if (!self->last)
     {
         free(self->tab);
@@ -146,9 +146,9 @@ static search_accel* _LZG_SearchAccel_Create(unsigned int window)
     /* Init (clear) arrays */
     self->window = window;
     for (i = 0; i < window; ++i)
-        self->tab[i] = 0xffffffff;
+        self->tab[i] = (unsigned char*) 0;
     for (i = 0; i < 65536; ++i)
-        self->last[i] = 0xffffffff;
+        self->last[i] = (unsigned char*) 0;
 
     return self;
 }
@@ -163,50 +163,43 @@ static void _LZG_SearchAccel_Destroy(search_accel *self)
     free(self);
 }
 
-static unsigned int _LZG_UpdateLastPos(search_accel *st,
-    const unsigned char *array, unsigned int idx)
+static void _LZG_UpdateLastPos(search_accel *st,
+    const unsigned char *first, unsigned char *pos)
 {
-    unsigned int idxPrev, lIdx;
+    unsigned int lIdx;
 
-    lIdx = (((unsigned int)array[idx]) << 8) | ((unsigned int)array[idx + 1]);
-    idxPrev = st->last[lIdx];
-    st->last[lIdx] = idx;
-    st->tab[idx % st->window] = idxPrev;
-
-    return idxPrev;
+    lIdx = (((unsigned int)pos[0]) << 8) | ((unsigned int)pos[1]);
+    st->tab[(pos - first) % st->window] = st->last[lIdx];
+    st->last[lIdx] = pos;
 }
 
 static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
   const unsigned char *end, const unsigned char *pos, unsigned int window,
   unsigned int symbolCost, unsigned int *offset)
 {
-    unsigned int length, bestLength = 2;
+    unsigned int length, bestLength = 2, dist;
     int win, bestWin = 0;
-    unsigned char *cmp1, *cmp2;
-    unsigned int i, idx, minIdx;
+    unsigned char *pos2, *cmp1, *cmp2, *minPos;
 
     *offset = 0;
     if ((pos + 1) >= end)
         return 0;
 
-    /* Current index */
-    idx = (unsigned int)(pos - first);
-    if (idx >= window)
-        minIdx = idx - window;
+    /* Minimum search position */
+    if ((pos - first) >= window)
+        minPos = (unsigned char*)(pos - window);
     else
-        minIdx = 0;
+        minPos = (unsigned char*)first;
 
-    /* Update search accelerator */
-    idx = _LZG_UpdateLastPos(sa, first, idx);
+    /* Previous search position */
+    pos2 = sa->tab[(pos - first) % window];
 
     /* Main search loop */
-    while ((idx != 0xffffffff) && (idx > minIdx))
+    while (pos2 && (pos2 > minPos))
     {
-        i = (unsigned int)(pos - first - idx);
-
         /* Calculate maximum match length for this offset */
-        cmp1 = (unsigned char*) pos;
-        cmp2 = cmp1 - i;
+        cmp1 = (unsigned char*)pos;
+        cmp2 = pos2;
         if (cmp2 < first) break;
         length = 0;
         while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < 257)) ++length;
@@ -214,27 +207,29 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         /* Improvement in match length? */
         if (length > bestLength)
         {
+            dist = (unsigned int)(pos - pos2);
+
             /* Get actual compression win for this match */
-            if ((i == 1) || ((length <= 4) && (i <= 255)))
+            if ((dist == 1) || ((length <= 4) && (dist <= 255)))
                 win = symbolCost + length - 3;
             else
             {
                 win = symbolCost + length - 4;
-                if (i >= 129) --win;
-                if (i >= 16385) --win;
+                if (dist >= 129) --win;
+                if (dist >= 16385) --win;
             }
 
             /* Best so far? */
             if (win > bestWin)
             {
                 bestWin = win;
-                *offset = i;
+                *offset = dist;
                 bestLength = length;
             }
         }
 
-        /* Previous search index */
-        idx = sa->tab[idx % window];
+        /* Previous search position */
+        pos2 = sa->tab[(pos2 - first) % window];
     }
 
     /* Did we get a match that would actually compress? */
@@ -323,6 +318,9 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
             break;
         }
 
+        /* Update search accelerator */
+        _LZG_UpdateLastPos(sa, in, src);
+
         /* Get current symbol (don't increment, yet) */
         symbol = *src;
 
@@ -389,9 +387,9 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                 }
             }
 
-            /* Skip ahead... */
+            /* Skip ahead (and update search accelerator)... */
             for (i = 1; i < length; ++i)
-                _LZG_UpdateLastPos(sa, in, (src - in) + i);
+                _LZG_UpdateLastPos(sa, in, src + i);
             src += length;
         }
         else
