@@ -110,19 +110,100 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
     return TRUE;
 }
 
-static unsigned int _LZG_FindMatch(const unsigned char *first,
-  const unsigned char *end, const unsigned char *pos, unsigned int maxOffset,
-  unsigned int symbolCost, int rleWin, unsigned int *offset)
+typedef struct _search_accel {
+    unsigned int *tab;
+    unsigned int *last;
+    unsigned int window;
+} search_accel;
+
+static search_accel* _LZG_SearchAccel_Create(unsigned int window)
+{
+    unsigned int i;
+    search_accel *self;
+
+    /* Allocate memory for the sarch tab object */
+    self = malloc(sizeof(search_accel));
+    if (!self)
+        return (search_accel*) 0;
+
+    /* Allocate memory for the table */
+    self->tab = malloc(sizeof(unsigned int) * window);
+    if (!self->tab)
+    {
+        free(self);
+        return (search_accel*) 0;
+    }
+
+    /* Allocate memory for the "last symbol occurance" array */
+    self->last = malloc(sizeof(unsigned int) * 65536);
+    if (!self->last)
+    {
+        free(self->tab);
+        free(self);
+        return (search_accel*) 0;
+    }
+
+    /* Init (clear) arrays */
+    self->window = window;
+    for (i = 0; i < window; ++i)
+        self->tab[i] = 0xffffffff;
+    for (i = 0; i < 65536; ++i)
+        self->last[i] = 0xffffffff;
+
+    return self;
+}
+
+static void _LZG_SearchAccel_Destroy(search_accel *self)
+{
+    if (!self)
+        return;
+
+    free(self->last);
+    free(self->tab);
+    free(self);
+}
+
+static unsigned int _LZG_UpdateLastPos(search_accel *st,
+    const unsigned char *array, unsigned int idx)
+{
+    unsigned int idxPrev, lIdx;
+
+    lIdx = (((unsigned int)array[idx]) << 8) | ((unsigned int)array[idx + 1]);
+    idxPrev = st->last[lIdx];
+    st->last[lIdx] = idx;
+    st->tab[idx % st->window] = idxPrev;
+
+    return idxPrev;
+}
+
+static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
+  const unsigned char *end, const unsigned char *pos, unsigned int window,
+  unsigned int symbolCost, unsigned int *offset)
 {
     unsigned int length, bestLength = 2;
     int win, bestWin = 0;
     unsigned char *cmp1, *cmp2;
-    unsigned int i;
+    unsigned int i, idx, minIdx;
 
-    /* Try all offsets */
     *offset = 0;
-    for (i = 1; i <= maxOffset; ++i)
+    if ((pos + 1) >= end)
+        return 0;
+
+    /* Current index */
+    idx = (unsigned int)(pos - first);
+    if (idx >= window)
+        minIdx = idx - window;
+    else
+        minIdx = 0;
+
+    /* Update search accelerator */
+    idx = _LZG_UpdateLastPos(sa, first, idx);
+
+    /* Main search loop */
+    while ((idx != 0xffffffff) && (idx > minIdx))
     {
+        i = (unsigned int)(pos - first - idx);
+
         /* Calculate maximum match length for this offset */
         cmp1 = (unsigned char*) pos;
         cmp2 = cmp1 - i;
@@ -134,7 +215,7 @@ static unsigned int _LZG_FindMatch(const unsigned char *first,
         if (length > bestLength)
         {
             /* Get actual compression win for this match */
-            if ((length <= 4) && (i <= 255))
+            if ((i == 1) || ((length <= 4) && (i <= 255)))
                 win = symbolCost + length - 3;
             else
             {
@@ -151,14 +232,18 @@ static unsigned int _LZG_FindMatch(const unsigned char *first,
                 bestLength = length;
             }
         }
+
+        /* Previous search index */
+        idx = sa->tab[idx % window];
     }
 
     /* Did we get a match that would actually compress? */
-    if ((bestWin > 0) && (bestWin > rleWin))
+    if (bestWin > 0)
         return bestLength;
     else
         return 0;
 }
+
 
 
 /*-- PUBLIC ------------------------------------------------------------------*/
@@ -174,18 +259,24 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
-    unsigned int length, rleLength, maxRleLength, offset = 0, symbolCost;
-    int rleWin, isMarkerSymbol, progress, oldProgress = -1;
+    unsigned int length, offset = 0, symbolCost, i;
+    int isMarkerSymbol, progress, oldProgress = -1;
+    search_accel *sa = (search_accel*) 0;
     lzg_header hdr;
 
     /* Check arguments */
     if ((!in) || (!out) || (window < 10) || (outsize < LZG_HEADER_SIZE))
-        return 0;
+        goto fail;
 
     /* Calculate histogram and find optimal marker symbols */
     if (!_LZG_DetermineMarkers(in, insize, &copy3Marker, &copy4Marker,
                                &copyNMarker, &rleMarker))
-        return 0;
+        goto fail;
+
+    /* Initialize search accelerator */
+    sa = _LZG_SearchAccel_Create(window);
+    if (!sa)
+        goto fail;
 
     /* Initialize the byte streams */
     src = (unsigned char *)in;
@@ -197,7 +288,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     dst += LZG_HEADER_SIZE;
 
     /* Set marker symbols */
-    if ((dst + 4) > outEnd) return 0;
+    if ((dst + 4) > outEnd) goto fail;
     *dst++ = copy3Marker;
     *dst++ = copy4Marker;
     *dst++ = copyNMarker;
@@ -244,81 +335,76 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         /* What's the cost for this symbol if we do not compress */
         symbolCost = isMarkerSymbol ? 2 : 1;
 
-        /* First check how good RLE we can do */
-        maxRleLength = inEnd - src;
-        if (maxRleLength > 257)
-            maxRleLength = 257;
-        rleLength = 1;
-        while ((rleLength < maxRleLength) && (src[rleLength] == symbol))
-            ++rleLength;
-        rleWin = symbolCost + rleLength - 4;
-
         /* Find best history match for this position in the input buffer */
-        length = _LZG_FindMatch(in, inEnd, src, window, symbolCost,
-                                rleWin, &offset);
+        length = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
+                                &offset);
+
         if (length > 0)
         {
-            if ((length == 3) && (offset <= 255))
+            if (offset == 1)
+            {
+                /* Special case: RLE */
+                if ((dst + 2) > outEnd) goto fail;
+                *dst++ = rleMarker;
+                *dst++ = length - 2;
+            }
+            else if ((length == 3) && (offset <= 255))
             {
                 /* Copy 3 bytes, short offset */
-                if ((dst + 2) > outEnd) return 0;
+                if ((dst + 2) > outEnd) goto fail;
                 *dst++ = copy3Marker;
                 *dst++ = offset;
             }
             else if ((length == 4) && (offset <= 255))
             {
                 /* Copy 4 bytes, short offset */
-                if ((dst + 2) > outEnd) return 0;
+                if ((dst + 2) > outEnd) goto fail;
                 *dst++ = copy4Marker;
                 *dst++ = offset;
             }
             else
             {
                 /* Copy variable number of bytes, any offset */
-                if ((dst + 2) > outEnd) return 0;
+                if ((dst + 2) > outEnd) goto fail;
                 *dst++ = copyNMarker;
                 *dst++ = length - 2;
                 --offset;
                 if (offset >= 16384)
                 {
-                    if ((dst + 3) > outEnd) return 0;
+                    if ((dst + 3) > outEnd) goto fail;
                     *dst++ = (offset >> 15) | 0x80;
                     *dst++ = (offset >> 8) | 0x80;
                     *dst++ = offset;
                 }
                 else if (offset >= 128)
                 {
-                    if ((dst + 2) > outEnd) return 0;
+                    if ((dst + 2) > outEnd) goto fail;
                     *dst++ = (offset >> 7) | 0x80;
                     *dst++ = offset & 0x7f;
                 }
                 else
                 {
-                    if (dst >= outEnd) return 0;
+                    if (dst >= outEnd) goto fail;
                     *dst++ = offset;
                 }
             }
+
+            /* Skip ahead... */
+            for (i = 1; i < length; ++i)
+                _LZG_UpdateLastPos(sa, in, (src - in) + i);
             src += length;
-        }
-        else if (rleWin > 0)
-        {
-            if ((dst + 3) > outEnd) return 0;
-            *dst++ = rleMarker;
-            *dst++ = rleLength - 2;
-            *dst++ = symbol;
-            src += rleLength;
         }
         else
         {
             /* Plain copy */
-            if (dst >= outEnd) return 0;
+            if (dst >= outEnd) goto fail;
             *dst++ = symbol;
             ++src;
 
             /* Was this symbol equal to any of the markers? */
             if (isMarkerSymbol)
             {
-                if (dst >= outEnd) return 0;
+                if (dst >= outEnd) goto fail;
                 *dst++ = 0;
             }
         }
@@ -335,5 +421,11 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 
     /* Return size of compressed buffer */
     return LZG_HEADER_SIZE + hdr.encodedSize;
+
+    /* Exit routine for failure situations */
+fail:
+    if (sa)
+        _LZG_SearchAccel_Destroy(sa);
+    return 0;
 }
 

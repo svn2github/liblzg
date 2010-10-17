@@ -198,16 +198,12 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 }
                 else /* rleMarker */
                 {
-                    /* Copy at least 2 bytes (excluding first symbol) */
-                    length = (unsigned int) b + 1;
+                    /* Copy at least 3 bytes */
+                    length = (unsigned int) b + 2;
 
                     /* Offset is 1 (start copying at the first occurance of the
                        repeat symbol) */
                     offset = 1;
-
-                    /* Put the repeat symbol in the output buffer */
-                    if ((src >= inEnd) || (dst >= outEnd)) return 0;
-                    *dst++ = *src++;
                 }
 
                 /* Copy corresponding data from history window */
