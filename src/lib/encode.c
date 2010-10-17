@@ -32,6 +32,25 @@
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
+/* Memory usage is affected by this define as follows:
+
+   [32-bit systems]
+   _LZG_USE_FASTEST_METHOD undefined => (65536 + window)*4 bytes
+   _LZG_USE_FASTEST_METHOD defined   => (16777216 + window)*4 bytes
+
+   [64-bit systems]
+   _LZG_USE_FASTEST_METHOD undefined => (65536 + window)*8 bytes
+   _LZG_USE_FASTEST_METHOD defined   => (16777216 + window)*8 bytes
+*/
+#define _LZG_USE_FASTEST_METHOD
+
+#ifdef _LZG_USE_FASTEST_METHOD
+# define _LZG_ACCEL_LAST_BUF 16777216
+#else
+# define _LZG_ACCEL_LAST_BUF 65536
+#endif
+
+
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
     /* Magic number */
@@ -114,9 +133,11 @@ typedef struct _search_accel {
     unsigned char **tab;
     unsigned char **last;
     unsigned int window;
+    unsigned int size;
 } search_accel;
 
-static search_accel* _LZG_SearchAccel_Create(unsigned int window)
+static search_accel* _LZG_SearchAccel_Create(unsigned int window,
+    unsigned int size)
 {
     unsigned int i;
     search_accel *self;
@@ -135,7 +156,7 @@ static search_accel* _LZG_SearchAccel_Create(unsigned int window)
     }
 
     /* Allocate memory for the "last symbol occurance" array */
-    self->last = malloc(sizeof(unsigned char *) * 65536);
+    self->last = malloc(sizeof(unsigned char *) * _LZG_ACCEL_LAST_BUF);
     if (!self->last)
     {
         free(self->tab);
@@ -145,9 +166,10 @@ static search_accel* _LZG_SearchAccel_Create(unsigned int window)
 
     /* Init (clear) arrays */
     self->window = window;
+    self->size = size;
     for (i = 0; i < window; ++i)
         self->tab[i] = (unsigned char*) 0;
-    for (i = 0; i < 65536; ++i)
+    for (i = 0; i < _LZG_ACCEL_LAST_BUF; ++i)
         self->last[i] = (unsigned char*) 0;
 
     return self;
@@ -168,7 +190,16 @@ static void _LZG_UpdateLastPos(search_accel *st,
 {
     unsigned int lIdx;
 
-    lIdx = (((unsigned int)pos[0]) << 8) | ((unsigned int)pos[1]);
+#ifdef _LZG_USE_FASTEST_METHOD
+    if (((pos - first) + 2) >= st->size) return;
+    lIdx = (((unsigned int)pos[0]) << 16) |
+           (((unsigned int)pos[1]) << 8) |
+           ((unsigned int)pos[2]);
+#else
+    if (((pos - first) + 1) >= st->size) return;
+    lIdx = (((unsigned int)pos[0]) << 8) |
+           ((unsigned int)pos[1]);
+#endif
     st->tab[(pos - first) % st->window] = st->last[lIdx];
     st->last[lIdx] = pos;
 }
@@ -182,8 +213,6 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
     unsigned char *pos2, *cmp1, *cmp2, *minPos;
 
     *offset = 0;
-    if ((pos + 1) >= end)
-        return 0;
 
     /* Minimum search position */
     if ((pos - first) >= window)
@@ -269,7 +298,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         goto fail;
 
     /* Initialize search accelerator */
-    sa = _LZG_SearchAccel_Create(window);
+    sa = _LZG_SearchAccel_Create(window, insize);
     if (!sa)
         goto fail;
 
