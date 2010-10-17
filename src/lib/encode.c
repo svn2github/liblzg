@@ -132,14 +132,13 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
 typedef struct _search_accel {
     unsigned char **tab;
     unsigned char **last;
-    unsigned int window;
-    unsigned int size;
+    size_t window;
+    size_t size;
 } search_accel;
 
-static search_accel* _LZG_SearchAccel_Create(unsigned int window,
-    unsigned int size)
+static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
 {
-    unsigned int i;
+    size_t i;
     search_accel *self;
 
     /* Allocate memory for the sarch tab object */
@@ -185,37 +184,37 @@ static void _LZG_SearchAccel_Destroy(search_accel *self)
     free(self);
 }
 
-static void _LZG_UpdateLastPos(search_accel *st,
+static void _LZG_UpdateLastPos(search_accel *sa,
     const unsigned char *first, unsigned char *pos)
 {
     unsigned int lIdx;
 
 #ifdef _LZG_USE_FASTEST_METHOD
-    if (((pos - first) + 2) >= st->size) return;
+    if (((size_t)(pos - first) + 2) >= sa->size) return;
     lIdx = (((unsigned int)pos[0]) << 16) |
            (((unsigned int)pos[1]) << 8) |
            ((unsigned int)pos[2]);
 #else
-    if (((pos - first) + 1) >= st->size) return;
+    if (((size_t)(pos - first) + 1) >= sa->size) return;
     lIdx = (((unsigned int)pos[0]) << 8) |
            ((unsigned int)pos[1]);
 #endif
-    st->tab[(pos - first) % st->window] = st->last[lIdx];
-    st->last[lIdx] = pos;
+    sa->tab[(pos - first) % sa->window] = sa->last[lIdx];
+    sa->last[lIdx] = pos;
 }
 
 static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
-  const unsigned char *end, const unsigned char *pos, unsigned int window,
-  unsigned int symbolCost, unsigned int *offset)
+  const unsigned char *end, const unsigned char *pos, size_t window,
+  size_t symbolCost, size_t *offset)
 {
-    unsigned int length, bestLength = 2, dist;
+    size_t length, bestLength = 2, dist;
     int win, bestWin = 0;
     unsigned char *pos2, *cmp1, *cmp2, *minPos;
 
     *offset = 0;
 
     /* Minimum search position */
-    if ((pos - first) >= window)
+    if ((size_t)(pos - first) >= window)
         minPos = (unsigned char*)(pos - window);
     else
         minPos = (unsigned char*)first;
@@ -236,7 +235,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         /* Improvement in match length? */
         if (length > bestLength)
         {
-            dist = (unsigned int)(pos - pos2);
+            dist = (size_t)(pos - pos2);
 
             /* Get actual compression win for this match */
             if ((dist == 1) || ((length <= 4) && (dist <= 255)))
@@ -283,7 +282,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
-    unsigned int length, offset = 0, symbolCost, i;
+    size_t length, offset = 0, symbolCost, i;
     int isMarkerSymbol, progress, oldProgress = -1;
     search_accel *sa = (search_accel*) 0;
     lzg_header hdr;
