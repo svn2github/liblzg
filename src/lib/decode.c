@@ -30,46 +30,11 @@
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
-static int _LZG_GetHeader(const unsigned char *in, unsigned int insize,
-  lzg_header *hdr)
-{
-    /* Bad input buffer? */
-    if (insize < LZG_HEADER_SIZE)
-        return FALSE;
-
-    /* Check magic number */
-    if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
-        return FALSE;
-
-    /* Get output buffer size */
-    hdr->decodedSize = (((unsigned int)in[3]) << 24) |
-                       (((unsigned int)in[4]) << 16) |
-                       (((unsigned int)in[5]) << 8) |
-                       ((unsigned int)in[6]);
-
-    /* Get & check input buffer size */
-    hdr->encodedSize = (((unsigned int)in[7]) << 24) |
-                       (((unsigned int)in[8]) << 16) |
-                       (((unsigned int)in[9]) << 8) |
-                       ((unsigned int)in[10]);
-    if (hdr->encodedSize != (insize - LZG_HEADER_SIZE))
-        return FALSE;
-
-    /* Get & check checksum */
-    hdr->checksum = (((unsigned int)in[11]) << 24) |
-                    (((unsigned int)in[12]) << 16) |
-                    (((unsigned int)in[13]) << 8) |
-                    ((unsigned int)in[14]);
-    if (_LZG_CalcChecksum(&in[LZG_HEADER_SIZE], hdr->encodedSize) != hdr->checksum)
-        return FALSE;
-
-    /* Check which method is used */
-    hdr->method = in[15];
-    if (hdr->method > LZG_METHOD_LZG1)
-        return FALSE;
-
-    return TRUE;
-}
+#define _LZG_GetUINT32(in, offs) \
+    ((((unsigned int)in[offs]) << 24) | \
+     (((unsigned int)in[offs+1]) << 16) | \
+     (((unsigned int)in[offs+2]) << 8) | \
+     ((unsigned int)in[offs+3]))
 
 
 /*-- PUBLIC ------------------------------------------------------------------*/
@@ -84,10 +49,7 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
         return FALSE;
 
     /* Get output buffer size */
-    return (((unsigned int)in[3]) << 24) |
-           (((unsigned int)in[4]) << 16) |
-           (((unsigned int)in[5]) << 8) |
-           ((unsigned int)in[6]);
+    return _LZG_GetUINT32(in, 3);
 }
 
 unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
@@ -96,14 +58,36 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b;
     unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
     unsigned int  i, length, offset;
-    lzg_header hdr;
+    unsigned int  encodedSize, decodedSize;
+    unsigned int  checksum;
+    unsigned char method;
 
-    /* Get/check header info */
-    if (!_LZG_GetHeader(in, insize, &hdr))
+    /* Does the input buffer at least contain the header? */
+    if (insize < LZG_HEADER_SIZE)
         return 0;
 
-    /* Enough space in the output buffer? */
-    if (outsize < hdr.decodedSize)
+    /* Check magic number */
+    if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
+        return 0;
+
+    /* Get & check output buffer size */
+    decodedSize = _LZG_GetUINT32(in, 3);
+    if (outsize < decodedSize)
+        return 0;
+
+    /* Get & check input buffer size */
+    encodedSize = _LZG_GetUINT32(in, 7);
+    if (encodedSize != (insize - LZG_HEADER_SIZE))
+        return 0;
+
+    /* Get & check checksum */
+    checksum = _LZG_GetUINT32(in, 11);
+    if (_LZG_CalcChecksum(&in[LZG_HEADER_SIZE], encodedSize) != checksum)
+        return 0;
+
+    /* Check which method is used */
+    method = in[15];
+    if (method > LZG_METHOD_LZG1)
         return 0;
 
     /* Initialize the byte streams */
@@ -116,16 +100,16 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     src += LZG_HEADER_SIZE;
 
     /* Plain copy? */
-    if (hdr.method == LZG_METHOD_COPY)
+    if (method == LZG_METHOD_COPY)
     {
-        if (hdr.decodedSize != hdr.encodedSize)
+        if (decodedSize != encodedSize)
             return 0;
 
         /* Copy 1:1, input buffer to output buffer */
-        for (i = hdr.decodedSize - 1; i > 0; --i)
+        for (i = decodedSize - 1; i > 0; --i)
             *dst++ = *src++;
 
-        return hdr.decodedSize;
+        return decodedSize;
     }
 
     /* Get marker symbols from the input stream */
@@ -229,10 +213,10 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     }
 
     /* Did we get the right number of output bytes? */
-    if ((unsigned int)(dst - out) != hdr.decodedSize)
+    if ((unsigned int)(dst - out) != decodedSize)
         return 0;
 
     /* Return size of decompressed buffer */
-    return hdr.decodedSize;
+    return decodedSize;
 }
 
