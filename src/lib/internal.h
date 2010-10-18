@@ -46,10 +46,10 @@
 #define LZG_HEADER_SIZE 16
 
 typedef struct _lzg_header {
-  unsigned int  encodedSize;
-  unsigned int  decodedSize;
-  unsigned int  checksum;
-  unsigned char method;
+    unsigned int  encodedSize;
+    unsigned int  decodedSize;
+    unsigned int  checksum;
+    unsigned char method;
 } lzg_header;
 
 /* Checksum calculation function (checksum.c) */
