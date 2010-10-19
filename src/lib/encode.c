@@ -32,6 +32,8 @@
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
+#define _LZG_MAX_RUN_LENGTH 257
+
 /* Memory usage is affected by this define as follows:
 
    [32-bit systems]
@@ -189,13 +191,12 @@ static void _LZG_UpdateLastPos(search_accel *sa,
 {
     unsigned int lIdx;
 
-#ifdef _LZG_USE_FASTEST_METHOD
     if (((size_t)(pos - first) + 2) >= sa->size) return;
+#ifdef _LZG_USE_FASTEST_METHOD
     lIdx = (((unsigned int)pos[0]) << 16) |
            (((unsigned int)pos[1]) << 8) |
            ((unsigned int)pos[2]);
 #else
-    if (((size_t)(pos - first) + 1) >= sa->size) return;
     lIdx = (((unsigned int)pos[0]) << 8) |
            ((unsigned int)pos[1]);
 #endif
@@ -226,11 +227,11 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
     while (pos2 && (pos2 > minPos))
     {
         /* Calculate maximum match length for this offset */
-        cmp1 = (unsigned char*)pos;
-        cmp2 = pos2;
-        if (cmp2 < first) break;
-        length = 0;
-        while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < 257)) ++length;
+        cmp1 = (unsigned char*)pos + 3;
+        cmp2 = pos2 + 3;
+        length = 3;
+        while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
+            ++length;
 
         /* Improvement in match length? */
         if (length > bestLength)
@@ -253,6 +254,8 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
                 bestWin = win;
                 *offset = dist;
                 bestLength = length;
+                if (length == _LZG_MAX_RUN_LENGTH)
+                    break;
             }
         }
 
