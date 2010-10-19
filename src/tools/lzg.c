@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <lzg.h>
 
 
@@ -37,31 +38,71 @@ void ShowProgress(int progress, void *data)
     fflush(f);
 }
 
+void ShowUsage(char *prgName)
+{
+    fprintf(stderr, "Usage: %s [options] infile [outfile]\n", prgName);
+    fprintf(stderr, "\nOptions:\n");
+    fprintf(stderr, " -1  Use fastest compression\n");
+    fprintf(stderr, " -9  Use best compression\n");
+    fprintf(stderr, "\nIf no output file is given, stdout is used for output.\n");
+}
+
 int main(int argc, char **argv)
 {
+    char *inName, *outName;
     FILE *inFile, *outFile;
     size_t fileSize;
     unsigned char *decBuf;
     unsigned int decSize = 0;
     unsigned char *encBuf;
-    unsigned int maxEncSize, encSize;
-    int useStdout = 0;
+    unsigned int maxEncSize, encSize, level;
+    int arg;
 
-    // Check arguments
-    if ((argc < 2) || (argc > 3))
+    // Default arguments
+    inName = NULL;
+    outName = NULL;
+    level = LZG_LEVEL_DEFAULT;
+
+    // Get arguments
+    for (arg = 1; arg < argc; ++arg)
     {
-        fprintf(stderr, "Usage: %s infile [outfile]\n", argv[0]);
-        fprintf(stderr, "If no output file is given, stdout is used for output.\n");
+        if (strcmp("-1", argv[arg]) == 0)
+            level = LZG_LEVEL_1;
+        else if (strcmp("-2", argv[arg]) == 0)
+            level = LZG_LEVEL_2;
+        else if (strcmp("-3", argv[arg]) == 0)
+            level = LZG_LEVEL_3;
+        else if (strcmp("-4", argv[arg]) == 0)
+            level = LZG_LEVEL_4;
+        else if (strcmp("-5", argv[arg]) == 0)
+            level = LZG_LEVEL_5;
+        else if (strcmp("-6", argv[arg]) == 0)
+            level = LZG_LEVEL_6;
+        else if (strcmp("-7", argv[arg]) == 0)
+            level = LZG_LEVEL_7;
+        else if (strcmp("-8", argv[arg]) == 0)
+            level = LZG_LEVEL_8;
+        else if (strcmp("-9", argv[arg]) == 0)
+            level = LZG_LEVEL_9;
+        else if (!inName)
+            inName = argv[arg];
+        else if (!outName)
+            outName = argv[arg];
+        else
+        {
+            ShowUsage(argv[0]);
+            return 0;
+        }
+    }
+    if (!inName)
+    {
+        ShowUsage(argv[0]);
         return 0;
     }
 
-    // Use stdout?
-    if (argc < 3)
-        useStdout = 1;
-
     // Read input file
     decBuf = (unsigned char*) 0;
-    inFile = fopen(argv[1], "rb");
+    inFile = fopen(inName, "rb");
     if (inFile)
     {
         fseek(inFile, 0, SEEK_END);
@@ -75,7 +116,7 @@ int main(int argc, char **argv)
             {
                 if (fread(decBuf, 1, decSize, inFile) != decSize)
                 {
-                    fprintf(stderr, "Error reading \"%s\".\n", argv[1]);
+                    fprintf(stderr, "Error reading \"%s\".\n", inName);
                     free(decBuf);
                     decBuf = (unsigned char*) 0;
                 }
@@ -89,7 +130,7 @@ int main(int argc, char **argv)
         fclose(inFile);
     }
     else
-        fprintf(stderr, "Unable to open file \"%s\".\n", argv[1]);
+        fprintf(stderr, "Unable to open file \"%s\".\n", inName);
 
     if (!decBuf)
         return 0;
@@ -103,18 +144,18 @@ int main(int argc, char **argv)
     {
         // Compress
         encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize,
-                             LZG_LEVEL_DEFAULT, ShowProgress, stderr);
+                             level, ShowProgress, stderr);
         if (encSize)
         {
             fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",
                             encSize, (100 * encSize) / decSize);
 
             // Compressed data is now in encBuf, write it...
-            if (!useStdout)
+            if (outName)
             {
-                outFile = fopen(argv[2], "wb");
+                outFile = fopen(outName, "wb");
                 if (!outFile)
-                    fprintf(stderr, "Unable to open file \"%s\".\n", argv[2]);
+                    fprintf(stderr, "Unable to open file \"%s\".\n", outName);
             }
             else
                 outFile = stdout;
@@ -126,7 +167,7 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Error writing to output file.\n");
 
                 // Close file
-                if (!useStdout)
+                if (outName)
                     fclose(outFile);
             }
         }
