@@ -118,15 +118,15 @@
 * @endcode
 */
 
-#define LZG_LEVEL_1 1024    /**< @brief Lowest/fastest compression level */
-#define LZG_LEVEL_2 8192    /**< @brief Compression level 2 */
-#define LZG_LEVEL_3 16384   /**< @brief Compression level 3 */
-#define LZG_LEVEL_4 32768   /**< @brief Compression level 4 */
-#define LZG_LEVEL_5 65536   /**< @brief Medium compression level */
-#define LZG_LEVEL_6 131072  /**< @brief Compression level 6 */
-#define LZG_LEVEL_7 262144  /**< @brief Compression level 7 */
-#define LZG_LEVEL_8 524288  /**< @brief Compression level 8 */
-#define LZG_LEVEL_9 1048576 /**< @brief Best/slowest compression level */
+#define LZG_LEVEL_1 1032    /**< @brief Lowest/fastest compression level */
+#define LZG_LEVEL_2 2048    /**< @brief Compression level 2 */
+#define LZG_LEVEL_3 4096    /**< @brief Compression level 3 */
+#define LZG_LEVEL_4 8192    /**< @brief Compression level 4 */
+#define LZG_LEVEL_5 16384   /**< @brief Medium compression level */
+#define LZG_LEVEL_6 32768   /**< @brief Compression level 6 */
+#define LZG_LEVEL_7 65536   /**< @brief Compression level 7 */
+#define LZG_LEVEL_8 131072  /**< @brief Compression level 8 */
+#define LZG_LEVEL_9 262152  /**< @brief Best/slowest compression level */
 
 /** @brief Default compression level */
 #define LZG_LEVEL_DEFAULT LZG_LEVEL_5

@@ -33,10 +33,9 @@
     Compressed data format
     ----------------------
 
-        M1 = marker symbol 1, "Copy 3 bytes"
-        M2 = marker symbol 2, "Copy 4 bytes"
-        M3 = marker symbol 3, "Copy N bytes"
-        M4 = marker symbol 4, "RLE"
+        M1 = marker symbol 1, "Short copy"
+        M2 = marker symbol 2, "Near copy / RLE"
+        M3 = marker symbol 3, "Generic copy"
         [x] = one byte
         {x} = one 32-bit unsigned word (big endian)
         %xxxxxxxx = 8 bits
@@ -49,45 +48,39 @@
         [method]
 
     LZG1 data stream start:
-        [M1] [M2] [M3] [M4]
+        [M1] [M2] [M3]
 
     Single occurance of a symbol:
-        [x]      => [x]     (x != M1,M2,M3,M4)
+        [x]      => [x]     (x != M1,M2,M3)
         [M1] [0] => [M1]
         [M2] [0] => [M2]
         [M3] [0] => [M3]
-        [M4] [0] => [M4]
 
     Copy from back buffer (Length bytes, Offset bytes back):
-        [M1] [%oooooooo]
-            Offset = %oooooooo
-            Length = 3
+        [M1] [%lloooooo]
+            Length = %000000ll + 3  (3-6)
+            Offset = %00oooooo + 8  (9-71)
 
-        [M2] [%oooooooo]
-            Offset = %oooooooo
-            Length = 4
+        [M2] [%ooolllll]
+            Length = %000lllll + 2  (3-33)
+            Offset = %00000ooo + 1  (1-8)
 
-        [M3] [%llllllll] [%0ooooooo]
-            Offset = %0ooooooo
-            Length = %llllllll + 2
+        [M3] [%ooolllll] [%0mmmmmmm]
+            Length = %000lllll + 2           (3-33)
+            Offset = %000000oo ommmmmmm + 8  (9-1032)
 
-        [M3] [%llllllll] [%1ooooooo] [%0mmmmmmm]
-            Offset = %00oooooo ommmmmmm
-            Length = %llllllll + 2
-
-        [M3] [%llllllll] [%1ooooooo] [%1mmmmmmm] [%nnnnnnnn]
-            Offset = %00oooooo ommmmmmm nnnnnnnn
-            Length = %llllllll + 2
-
-        [M4] [%llllllll]
-            Offset = 1
-            Length = %llllllll + 2
+        [M3] [%ooolllll] [%1mmmmmmm] [%nnnnnnnn]
+            Length = %000lllll + 2                    (3-33)
+            Offset = %000000oo ommmmmmm nnnnnnnn + 8  (9-262152)
 */
 
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
-#define _LZG_MAX_RUN_LENGTH 257
+/* Limits */
+#define _LZG_MAX_RUN_LENGTH 33
+#define _LZG_MAX_OFFSET     262152
+
 
 /* Memory usage is affected by this define as follows:
 
@@ -150,7 +143,7 @@ static int hist_rec_compare(const void *p1, const void *p2)
 
 static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
     unsigned char *leastCommon1, unsigned char *leastCommon2,
-    unsigned char *leastCommon3, unsigned char *leastCommon4)
+    unsigned char *leastCommon3)
 {
     hist_rec *hist;
     unsigned int i;
@@ -178,7 +171,6 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
     *leastCommon1 = (unsigned char) hist[0].symbol;
     *leastCommon2 = (unsigned char) hist[1].symbol;
     *leastCommon3 = (unsigned char) hist[2].symbol;
-    *leastCommon4 = (unsigned char) hist[3].symbol;
 
     /* Free memory for histogram */
     free(hist);
@@ -294,13 +286,12 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
             dist = (size_t)(pos - pos2);
 
             /* Get actual compression win for this match */
-            if ((dist == 1) || ((length <= 4) && (dist <= 255)))
-                win = symbolCost + length - 3;
+            if ((dist <= 8) || ((length <= 6) && (dist <= 71)))
+                win = length + symbolCost - 3;
             else
             {
-                win = symbolCost + length - 4;
-                if (dist >= 129) --win;
-                if (dist >= 16385) --win;
+                win = length + symbolCost - 4;
+                if (dist >= 1033) --win;
             }
 
             /* Best so far? */
@@ -331,7 +322,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
 
 unsigned int LZG_MaxEncodedSize(unsigned int insize)
 {
-    return insize + ((insize + 63) / 64) + LZG_HEADER_SIZE + 4;
+    return insize + ((insize + 63) / 64) + LZG_HEADER_SIZE + 3;
 }
 
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
@@ -339,19 +330,22 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     LZGPROGRESSFUN progressfun, void *userdata)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
-    unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
+    unsigned char marker1, marker2, marker3;
     size_t length, offset = 0, symbolCost, i;
     int isMarkerSymbol, progress, oldProgress = -1;
     search_accel *sa = (search_accel*) 0;
     lzg_header hdr;
 
     /* Check arguments */
-    if ((!in) || (!out) || (window < 10) || (outsize < LZG_HEADER_SIZE))
+    if ((!in) || (!out) || (window < 1) || (outsize < LZG_HEADER_SIZE))
         goto fail;
 
+    /* Limit the window */
+    if (window > _LZG_MAX_OFFSET)
+        window = _LZG_MAX_OFFSET;
+
     /* Calculate histogram and find optimal marker symbols */
-    if (!_LZG_DetermineMarkers(in, insize, &copy3Marker, &copy4Marker,
-                               &copyNMarker, &rleMarker))
+    if (!_LZG_DetermineMarkers(in, insize, &marker1, &marker2, &marker3))
         goto fail;
 
     /* Initialize search accelerator */
@@ -369,11 +363,10 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     dst += LZG_HEADER_SIZE;
 
     /* Set marker symbols */
-    if ((dst + 4) > outEnd) goto fail;
-    *dst++ = copy3Marker;
-    *dst++ = copy4Marker;
-    *dst++ = copyNMarker;
-    *dst++ = rleMarker;
+    if ((dst + 3) > outEnd) goto fail;
+    *dst++ = marker1;
+    *dst++ = marker2;
+    *dst++ = marker3;
 
     /* Try LZG compression first - if it grows too much, fall back to copy */
     hdr.method = LZG_METHOD_LZG1;
@@ -411,10 +404,9 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         symbol = *src;
 
         /* Is this a marker symbol? */
-        isMarkerSymbol = (symbol == copy3Marker) ||
-                         (symbol == copy4Marker) ||
-                         (symbol == copyNMarker) ||
-                         (symbol == rleMarker);
+        isMarkerSymbol = (symbol == marker1) ||
+                         (symbol == marker2) ||
+                         (symbol == marker3);
 
         /* What's the cost for this symbol if we do not compress */
         symbolCost = isMarkerSymbol ? 2 : 1;
@@ -425,51 +417,38 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 
         if (length > 0)
         {
-            if (offset == 1)
+            if ((length <= 6) && (offset >= 9) && (offset <= 71))
             {
-                /* Special case: RLE */
+                /* Short copy */
                 if ((dst + 2) > outEnd) goto fail;
-                *dst++ = rleMarker;
-                *dst++ = length - 2;
+                *dst++ = marker1;
+                *dst++ = ((length - 3) << 6) | (offset - 8);
             }
-            else if ((length == 3) && (offset <= 255))
+            else if (offset <= 8)
             {
-                /* Copy 3 bytes, short offset */
+                /* Near copy */
                 if ((dst + 2) > outEnd) goto fail;
-                *dst++ = copy3Marker;
-                *dst++ = offset;
-            }
-            else if ((length == 4) && (offset <= 255))
-            {
-                /* Copy 4 bytes, short offset */
-                if ((dst + 2) > outEnd) goto fail;
-                *dst++ = copy4Marker;
-                *dst++ = offset;
+                *dst++ = marker2;
+                *dst++ = ((offset - 1) << 5) | (length - 2);
             }
             else
             {
-                /* Copy variable number of bytes, any offset */
-                if ((dst + 2) > outEnd) goto fail;
-                *dst++ = copyNMarker;
-                *dst++ = length - 2;
-                --offset;
-                if (offset >= 16384)
+                /* Generic copy */
+                if (dst >= outEnd) goto fail;
+                *dst++ = marker3;
+                offset -= 8;
+                if (offset >= 1024)
                 {
                     if ((dst + 3) > outEnd) goto fail;
-                    *dst++ = (offset >> 15) | 0x80;
+                    *dst++ = ((offset >> 10) & 0xe0) | (length - 2);
                     *dst++ = (offset >> 8) | 0x80;
                     *dst++ = offset;
                 }
-                else if (offset >= 128)
-                {
-                    if ((dst + 2) > outEnd) goto fail;
-                    *dst++ = (offset >> 7) | 0x80;
-                    *dst++ = offset & 0x7f;
-                }
                 else
                 {
-                    if (dst >= outEnd) goto fail;
-                    *dst++ = offset;
+                    if ((dst + 2) > outEnd) goto fail;
+                    *dst++ = ((offset >> 2) & 0xe0) | (length - 2);
+                    *dst++ = offset & 0x7f;
                 }
             }
 

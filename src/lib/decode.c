@@ -56,7 +56,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned char *out, unsigned int outsize)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b;
-    unsigned char copy3Marker, copy4Marker, copyNMarker, rleMarker;
+    unsigned char marker1, marker2, marker3;
     unsigned int  i, length, offset;
     unsigned int  encodedSize, decodedSize;
     unsigned int  checksum;
@@ -113,11 +113,10 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     }
 
     /* Get marker symbols from the input stream */
-    if ((src + 4) > inEnd) return 0;
-    copy3Marker = *src++;
-    copy4Marker = *src++;
-    copyNMarker = *src++;
-    rleMarker = *src++;
+    if ((src + 3) > inEnd) return 0;
+    marker1 = *src++;
+    marker2 = *src++;
+    marker3 = *src++;
 
     /* Main decompression loop */
     while (src < inEnd)
@@ -125,69 +124,48 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
         /* Get the next symbol */
         symbol = *src++;
 
-        /* Copy marker */
-        if ((symbol == copy3Marker) ||
-            (symbol == copy4Marker) ||
-            (symbol == copyNMarker) ||
-            (symbol == rleMarker))
+        /* Marker symbol? */
+        if ((symbol == marker1) ||
+            (symbol == marker2) ||
+            (symbol == marker3))
         {
             if (src >= inEnd) return 0;
             b = *src++;
 
-            if (b > 0)
+            if (b)
             {
                 /* Decode offset / length parameters */
-                if (symbol == copy3Marker)
+                if (symbol == marker1)
                 {
-                    /* Copy 3 bytes */
-                    length = 3;
-
-                    /* Offset is in the range 1..255 */
-                    offset = (unsigned int) b;
+                    /* Short copy */
+                    length = (b >> 6) + 3;
+                    offset = (b & 0x3f) + 8;
                 }
-                else if (symbol == copy4Marker)
+                else if (symbol == marker2)
                 {
-                    /* Copy 4 bytes */
-                    length = 4;
-
-                    /* Offset is in the range 1..255 */
-                    offset = (unsigned int) b;
+                    /* Near copy */
+                    length = (b & 0x1f) + 2;
+                    offset = (b >> 5) + 1;
                 }
-                else if (symbol == copyNMarker)
+                else
                 {
-                    /* Copy at least 3 bytes */
-                    length = (unsigned int) b + 2;
+                    /* Generic copy */
+                    length = (b & 0x1f) + 2;
+                    offset = ((unsigned int) (b & 0xe0)) << 2;
 
                     /* Decode offset using varying size coding:
-                       1-128:         1 byte
-                       129-16384:     2 bytes
-                       16385-4194304: 3 bytes
+                       1-1024:         +1 byte
+                       1025-262144:    +2 bytes
                     */
                     if (src >= inEnd) return 0;
                     b = *src++;
-                    offset = (unsigned int) (b & 0x7f);
+                    offset |= b & 0x7f;
                     if (b >= 0x80)
                     {
                         if (src >= inEnd) return 0;
-                        b = *src++;;
-                        offset = (offset << 7) | (unsigned int) (b & 0x7f);
-                        if (b >= 0x80)
-                        {
-                            if (src >= inEnd) return 0;
-                            b = *src++;;
-                            offset = (offset << 8) | (unsigned int) b;
-                        }
+                        offset = (offset << 8) | (*src++);
                     }
-                    offset++;
-                }
-                else /* rleMarker */
-                {
-                    /* Copy at least 3 bytes */
-                    length = (unsigned int) b + 2;
-
-                    /* Offset is 1 (start copying at the first occurance of the
-                       repeat symbol) */
-                    offset = 1;
+                    offset += 8;
                 }
 
                 /* Copy corresponding data from history window */
@@ -219,4 +197,3 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     /* Return size of decompressed buffer */
     return decodedSize;
 }
-
