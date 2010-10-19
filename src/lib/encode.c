@@ -29,6 +29,61 @@
 #include <string.h>
 #include "internal.h"
 
+/*
+    Compressed data format
+    ----------------------
+
+        M1 = marker symbol 1, "Copy 3 bytes"
+        M2 = marker symbol 2, "Copy 4 bytes"
+        M3 = marker symbol 3, "Copy N bytes"
+        M4 = marker symbol 4, "RLE"
+        [x] = one byte
+        {x} = one 32-bit unsigned word (big endian)
+        %xxxxxxxx = 8 bits
+
+    Data header:
+        ["L"] ["Z"] ["G"]
+        {decoded size}
+        {encoded size}
+        {checksum}
+        [method]
+
+    LZG1 data stream start:
+        [M1] [M2] [M3] [M4]
+
+    Single occurance of a symbol:
+        [x]      => [x]     (x != M1,M2,M3,M4)
+        [M1] [0] => [M1]
+        [M2] [0] => [M2]
+        [M3] [0] => [M3]
+        [M4] [0] => [M4]
+
+    Copy from back buffer (Length bytes, Offset bytes back):
+        [M1] [%oooooooo]
+            Offset = %oooooooo
+            Length = 3
+
+        [M2] [%oooooooo]
+            Offset = %oooooooo
+            Length = 4
+
+        [M3] [%llllllll] [%0ooooooo]
+            Offset = %0ooooooo
+            Length = %llllllll + 2
+
+        [M3] [%llllllll] [%1ooooooo] [%0mmmmmmm]
+            Offset = %00oooooo ommmmmmm
+            Length = %llllllll + 2
+
+        [M3] [%llllllll] [%1ooooooo] [%1mmmmmmm] [%nnnnnnnn]
+            Offset = %00oooooo ommmmmmm nnnnnnnn
+            Length = %llllllll + 2
+
+        [M4] [%llllllll]
+            Offset = 1
+            Length = %llllllll + 2
+*/
+
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
