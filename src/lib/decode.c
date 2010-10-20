@@ -46,7 +46,7 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
 
     /* Check magic number */
     if ((in[0] != 'L') || (in[1] != 'Z') || (in[2] != 'G'))
-        return FALSE;
+        return 0;
 
     /* Get output buffer size */
     return _LZG_GetUINT32(in, 3);
@@ -173,21 +173,14 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 if ((copy < out) || ((dst + length) > outEnd)) return 0;
                 for (i = 0; i < length; ++i)
                     *dst++ = *copy++;
-            }
-            else
-            {
-                /* ...single occurance of the marker symbol */
-                if (dst >= outEnd) return 0;
-                *dst++ = symbol;
+
+                continue;
             }
         }
 
-        /* No marker, plain copy... */
-        else
-        {
-            if (dst >= outEnd) return 0;
-            *dst++ = symbol;
-        }
+        /* Plain copy (or single occurance of a marker symbol)... */
+        if (dst >= outEnd) return 0;
+        *dst++ = symbol;
     }
 
     /* Did we get the right number of output bytes? */

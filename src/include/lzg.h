@@ -28,6 +28,10 @@
 #ifndef _LIBLZG_H_
 #define _LIBLZG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
 * @file
 * @mainpage
@@ -54,31 +58,31 @@
 * as buf/bufSize).
 *
 * @code
-*   unsigned char *encBuf;
-*   unsigned int encSize, maxEncSize;
+*     unsigned char *encBuf;
+*     unsigned int encSize, maxEncSize;
 *
-*    // Determine maximum size of compressed data
-*    maxEncSize = LZG_MaxEncodedSize(bufSize);
+*     // Determine maximum size of compressed data
+*     maxEncSize = LZG_MaxEncodedSize(bufSize);
 *
-*    // Allocate memory for the compressed data
-*    encBuf = (unsigned char*) malloc(maxEncSize);
-*    if (encBuf)
-*    {
-*        // Compress
-*        encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, LZG_LEVEL_DEFAULT, NULL, NULL);
-*        if (encSize)
-*        {
-*            // Compressed data is now in encBuf, use it...
-*            // ...
-*        }
-*        else
-*            fprintf(stderr, "Compression failed!\n");
+*     // Allocate memory for the compressed data
+*     encBuf = (unsigned char*) malloc(maxEncSize);
+*     if (encBuf)
+*     {
+*         // Compress
+*         encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, LZG_LEVEL_DEFAULT, NULL, NULL);
+*         if (encSize)
+*         {
+*             // Compressed data is now in encBuf, use it...
+*             // ...
+*         }
+*         else
+*             fprintf(stderr, "Compression failed!\n");
 *
-*        // Free memory when we're done with the compressed data
-*        free(encBuf);
-*    }
-*    else
-*        fprintf(stderr, "Out of memory!\n");
+*         // Free memory when we're done with the compressed data
+*         free(encBuf);
+*     }
+*     else
+*         fprintf(stderr, "Out of memory!\n");
 * @endcode
 *
 * @section decompr_sec Decompression
@@ -147,7 +151,7 @@ unsigned int LZG_MaxEncodedSize(unsigned int insize);
 typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
 
 /**
-* Encode uncomopressed data using the LZG coder (i.e. compress the data).
+* Encode uncompressed data using the LZG coder (i.e. compress the data).
 * @param[in]  in Input (uncompressed) buffer.
 * @param[in]  insize Size of the input buffer (number of bytes).
 * @param[out] out Output (compressed) buffer.
@@ -196,6 +200,8 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize);
 unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                         unsigned char *out, unsigned int outsize);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _LIBLZG_H_
-
