@@ -197,7 +197,7 @@ int main(int argc, char **argv)
             progressfun = ShowProgress;
         StartTimer();
         encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize,
-                             level, progressfun, stderr);
+                             level, 1, progressfun, stderr);
         t = StopTimer();
         if (encSize)
         {

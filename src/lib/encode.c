@@ -89,25 +89,6 @@
 #define _LZG_MAX_OFFSET     262152
 
 
-/* Memory usage is affected by this define as follows:
-
-   [32-bit systems]
-   _LZG_USE_FASTEST_METHOD undefined => (65536 + window)*4 bytes
-   _LZG_USE_FASTEST_METHOD defined   => (16777216 + window)*4 bytes
-
-   [64-bit systems]
-   _LZG_USE_FASTEST_METHOD undefined => (65536 + window)*8 bytes
-   _LZG_USE_FASTEST_METHOD defined   => (16777216 + window)*8 bytes
-*/
-#define _LZG_USE_FASTEST_METHOD
-
-#ifdef _LZG_USE_FASTEST_METHOD
-# define _LZG_ACCEL_LAST_BUF 16777216
-#else
-# define _LZG_ACCEL_LAST_BUF 65536
-#endif
-
-
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
     /* Magic number */
@@ -190,9 +171,11 @@ typedef struct _search_accel {
     unsigned char **last;
     size_t window;
     size_t size;
+    int fast;
 } search_accel;
 
-static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
+static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size,
+    int fast)
 {
     search_accel *self;
 
@@ -210,7 +193,7 @@ static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
     }
 
     /* Allocate memory for the "last symbol occurance" array */
-    self->last = calloc(_LZG_ACCEL_LAST_BUF, sizeof(unsigned char *));
+    self->last = calloc(fast ? 16777216 : 65536, sizeof(unsigned char *));
     if (!self->last)
     {
         free(self->tab);
@@ -221,6 +204,7 @@ static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
     /* Init parameters */
     self->window = window;
     self->size = size;
+    self->fast = fast;
 
     return self;
 }
@@ -241,14 +225,13 @@ static void _LZG_UpdateLastPos(search_accel *sa,
     unsigned int lIdx;
 
     if (((size_t)(pos - first) + 2) >= sa->size) return;
-#ifdef _LZG_USE_FASTEST_METHOD
-    lIdx = (((unsigned int)pos[0]) << 16) |
-           (((unsigned int)pos[1]) << 8) |
-           ((unsigned int)pos[2]);
-#else
-    lIdx = (((unsigned int)pos[0]) << 8) |
-           ((unsigned int)pos[1]);
-#endif
+    if (sa->fast)
+        lIdx = (((unsigned int)pos[0]) << 16) |
+               (((unsigned int)pos[1]) << 8) |
+               ((unsigned int)pos[2]);
+    else
+        lIdx = (((unsigned int)pos[0]) << 8) |
+               ((unsigned int)pos[1]);
     sa->tab[(pos - first) % sa->window] = sa->last[lIdx];
     sa->last[lIdx] = pos;
 }
@@ -257,7 +240,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
   const unsigned char *end, const unsigned char *pos, size_t window,
   size_t symbolCost, size_t *offset)
 {
-    size_t length, bestLength = 2, dist;
+    size_t length, bestLength = 2, dist, preMatch;
     int win, bestWin = 0;
     unsigned char *pos2, *cmp1, *cmp2, *minPos;
 
@@ -272,19 +255,16 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
     /* Previous search position */
     pos2 = sa->tab[(pos - first) % window];
 
+    /* Pre-matched by the acceleration structure */
+    preMatch = sa->fast ? 3 : 2;
+
     /* Main search loop */
     while (pos2 && (pos2 > minPos))
     {
         /* Calculate maximum match length for this offset */
-#ifdef _LZG_USE_FASTEST_METHOD
-        cmp1 = (unsigned char*)pos + 3;
-        cmp2 = pos2 + 3;
-        length = 3;
-#else
-        cmp1 = (unsigned char*)pos + 2;
-        cmp2 = pos2 + 2;
-        length = 2;
-#endif
+        cmp1 = (unsigned char*)pos + preMatch;
+        cmp2 = pos2 + preMatch;
+        length = preMatch;
         while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
             ++length;
 
@@ -347,7 +327,7 @@ unsigned int LZG_MaxEncodedSize(unsigned int insize)
 
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     unsigned char *out, unsigned int outsize, unsigned int window,
-    LZGPROGRESSFUN progressfun, void *userdata)
+    int fast, LZGPROGRESSFUN progressfun, void *userdata)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char marker1, marker2, marker3;
@@ -369,7 +349,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         goto fail;
 
     /* Initialize search accelerator */
-    sa = _LZG_SearchAccel_Create(window, insize);
+    sa = _LZG_SearchAccel_Create(window, insize, fast);
     if (!sa)
         goto fail;
 

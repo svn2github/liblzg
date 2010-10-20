@@ -144,7 +144,7 @@ int main(int argc, char **argv)
     {
         // Compress
         encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize,
-                             level, ShowProgress, stderr);
+                             level, 1, ShowProgress, stderr);
         if (encSize)
         {
             fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",
