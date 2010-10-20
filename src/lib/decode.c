@@ -26,9 +26,13 @@
 */
 
 #include "internal.h"
-
+#include <string.h>
 
 /*-- PRIVATE -----------------------------------------------------------------*/
+
+/* Comment this out for extra speed (the decoder will not be as safe, but
+   unless the checksum test is broken there should be no problem). */
+#define _LZG_STRICT_BOUNDS_CHECK
 
 #define _LZG_GetUINT32(in, offs) \
     ((((unsigned int)in[offs]) << 24) | \
@@ -135,7 +139,9 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
             (symbol == marker2) ||
             (symbol == marker3))
         {
+#ifdef _LZG_STRICT_BOUNDS_CHECK
             if (src >= inEnd) return 0;
+#endif
             b = *src++;
 
             if (b)
@@ -163,29 +169,57 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                        1-1024:         +1 byte
                        1025-262144:    +2 bytes
                     */
+#ifdef _LZG_STRICT_BOUNDS_CHECK
                     if (src >= inEnd) return 0;
+#endif
                     b = *src++;
                     offset |= b & 0x7f;
                     if (b >= 0x80)
                     {
+#ifdef _LZG_STRICT_BOUNDS_CHECK
                         if (src >= inEnd) return 0;
+#endif
                         offset = (offset << 8) | (*src++);
                     }
                     offset += 8;
                 }
 
                 /* Copy corresponding data from history window */
+                /* Note: We use loop unrolling to improve the speed */
                 copy = dst - offset;
+#ifdef _LZG_STRICT_BOUNDS_CHECK
                 if ((copy < out) || ((dst + length) > outEnd)) return 0;
-                for (i = 0; i < length; ++i)
-                    *dst++ = *copy++;
+#endif
+                switch (length)
+                {
+                    default:
+                        for (i = 29; i < length; ++i)
+                            *dst++ = *copy++;
+                    case 29: *dst++ = *copy++; case 28: *dst++ = *copy++;
+                    case 27: *dst++ = *copy++; case 26: *dst++ = *copy++;
+                    case 25: *dst++ = *copy++; case 24: *dst++ = *copy++;
+                    case 23: *dst++ = *copy++; case 22: *dst++ = *copy++;
+                    case 21: *dst++ = *copy++; case 20: *dst++ = *copy++;
+                    case 19: *dst++ = *copy++; case 18: *dst++ = *copy++;
+                    case 17: *dst++ = *copy++; case 16: *dst++ = *copy++;
+                    case 15: *dst++ = *copy++; case 14: *dst++ = *copy++;
+                    case 13: *dst++ = *copy++; case 12: *dst++ = *copy++;
+                    case 11: *dst++ = *copy++; case 10: *dst++ = *copy++;
+                    case 9:  *dst++ = *copy++; case 8:  *dst++ = *copy++;
+                    case 7:  *dst++ = *copy++; case 6:  *dst++ = *copy++;
+                    case 5:  *dst++ = *copy++; case 4:  *dst++ = *copy++;
+                    case 3:  *dst++ = *copy++; case 2:  *dst++ = *copy++;
+                    case 1:  *dst++ = *copy++;
+                }
 
                 continue;
             }
         }
 
         /* Plain copy (or single occurance of a marker symbol)... */
+#ifdef _LZG_STRICT_BOUNDS_CHECK
         if (dst >= outEnd) return 0;
+#endif
         *dst++ = symbol;
     }
 
