@@ -194,7 +194,6 @@ typedef struct _search_accel {
 
 static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
 {
-    size_t i;
     search_accel *self;
 
     /* Allocate memory for the sarch tab object */
@@ -203,7 +202,7 @@ static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
         return (search_accel*) 0;
 
     /* Allocate memory for the table */
-    self->tab = malloc(sizeof(unsigned char *) * window);
+    self->tab = calloc(window, sizeof(unsigned char *));
     if (!self->tab)
     {
         free(self);
@@ -211,7 +210,7 @@ static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
     }
 
     /* Allocate memory for the "last symbol occurance" array */
-    self->last = malloc(sizeof(unsigned char *) * _LZG_ACCEL_LAST_BUF);
+    self->last = calloc(_LZG_ACCEL_LAST_BUF, sizeof(unsigned char *));
     if (!self->last)
     {
         free(self->tab);
@@ -219,13 +218,9 @@ static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size)
         return (search_accel*) 0;
     }
 
-    /* Init (clear) arrays */
+    /* Init parameters */
     self->window = window;
     self->size = size;
-    for (i = 0; i < window; ++i)
-        self->tab[i] = (unsigned char*) 0;
-    for (i = 0; i < _LZG_ACCEL_LAST_BUF; ++i)
-        self->last[i] = (unsigned char*) 0;
 
     return self;
 }
@@ -281,9 +276,15 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
     while (pos2 && (pos2 > minPos))
     {
         /* Calculate maximum match length for this offset */
+#ifdef _LZG_USE_FASTEST_METHOD
         cmp1 = (unsigned char*)pos + 3;
         cmp2 = pos2 + 3;
         length = 3;
+#else
+        cmp1 = (unsigned char*)pos + 2;
+        cmp2 = pos2 + 2;
+        length = 2;
+#endif
         while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
             ++length;
 
