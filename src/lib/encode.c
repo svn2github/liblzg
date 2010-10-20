@@ -58,27 +58,34 @@
 
     Copy from back buffer (Length bytes, Offset bytes back):
         [M1] [%lloooooo]
-            Length = %000000ll + 3  (3-6)
-            Offset = %00oooooo + 8  (9-71)
+            Length' = %000000ll + 3  (3-6)
+            Offset  = %00oooooo + 8  (9-71)
 
         [M2] [%ooolllll]
-            Length = %000lllll + 2  (3-33)
-            Offset = %00000ooo + 1  (1-8)
+            Length' = %000lllll + 2  (3-33)
+            Offset  = %00000ooo + 1  (1-8)
 
         [M3] [%ooolllll] [%0mmmmmmm]
-            Length = %000lllll + 2           (3-33)
-            Offset = %000000oo ommmmmmm + 8  (9-1032)
+            Length' = %000lllll + 2           (3-33)
+            Offset  = %000000oo ommmmmmm + 8  (9-1032)
 
         [M3] [%ooolllll] [%1mmmmmmm] [%nnnnnnnn]
-            Length = %000lllll + 2                    (3-33)
-            Offset = %000000oo ommmmmmm nnnnnnnn + 8  (9-262152)
+            Length' = %000lllll + 2                    (3-33)
+            Offset  = %000000oo ommmmmmm nnnnnnnn + 8  (9-262152)
+
+    Length encoding:
+        Length' = 33  =>  Length = 128
+        Length' = 32  =>  Length = 72
+        Length' = 31  =>  Length = 48
+        Length' = 30  =>  Length = 35
+        Length' < 30  =>  Length = Length'
 */
 
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
 /* Limits */
-#define _LZG_MAX_RUN_LENGTH 33
+#define _LZG_MAX_RUN_LENGTH 128
 #define _LZG_MAX_OFFSET     262152
 
 
@@ -280,6 +287,18 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
             ++length;
 
+        /* Encode length using a non-linear scale */
+        if (length >= 128)
+            length = 33;
+        else if (length >= 72)
+            length = 32;
+        else if (length >= 48)
+            length = 31;
+        else if (length >= 35)
+            length = 30;
+        else if (length >= 29)
+            length = 29;
+
         /* Improvement in match length? */
         if (length > bestLength)
         {
@@ -300,7 +319,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
                 bestWin = win;
                 *offset = dist;
                 bestLength = length;
-                if (length == _LZG_MAX_RUN_LENGTH)
+                if (length == 33)
                     break;
             }
         }
@@ -331,7 +350,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char marker1, marker2, marker3;
-    size_t length, offset = 0, symbolCost, i;
+    size_t lengthEnc, length, offset = 0, symbolCost, i;
     int isMarkerSymbol, progress, oldProgress = -1;
     search_accel *sa = (search_accel*) 0;
     lzg_header hdr;
@@ -412,24 +431,24 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         symbolCost = isMarkerSymbol ? 2 : 1;
 
         /* Find best history match for this position in the input buffer */
-        length = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
-                                &offset);
+        lengthEnc = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
+                                   &offset);
 
-        if (length > 0)
+        if (lengthEnc > 0)
         {
-            if ((length <= 6) && (offset >= 9) && (offset <= 71))
+            if ((lengthEnc <= 6) && (offset >= 9) && (offset <= 71))
             {
                 /* Short copy */
                 if ((dst + 2) > outEnd) goto fail;
                 *dst++ = marker1;
-                *dst++ = ((length - 3) << 6) | (offset - 8);
+                *dst++ = ((lengthEnc - 3) << 6) | (offset - 8);
             }
             else if (offset <= 8)
             {
                 /* Near copy */
                 if ((dst + 2) > outEnd) goto fail;
                 *dst++ = marker2;
-                *dst++ = ((offset - 1) << 5) | (length - 2);
+                *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
             else
             {
@@ -440,16 +459,35 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                 if (offset >= 1024)
                 {
                     if ((dst + 3) > outEnd) goto fail;
-                    *dst++ = ((offset >> 10) & 0xe0) | (length - 2);
+                    *dst++ = ((offset >> 10) & 0xe0) | (lengthEnc - 2);
                     *dst++ = (offset >> 8) | 0x80;
                     *dst++ = offset;
                 }
                 else
                 {
                     if ((dst + 2) > outEnd) goto fail;
-                    *dst++ = ((offset >> 2) & 0xe0) | (length - 2);
+                    *dst++ = ((offset >> 2) & 0xe0) | (lengthEnc - 2);
                     *dst++ = offset & 0x7f;
                 }
+            }
+
+            /* Decode non-linear length */
+            switch (lengthEnc)
+            {
+                case 33:
+                    length = 128;
+                    break;
+                case 32:
+                    length = 72;
+                    break;
+                case 31:
+                    length = 48;
+                    break;
+                case 30:
+                    length = 35;
+                    break;
+                default:
+                    length = lengthEnc;
             }
 
             /* Skip ahead (and update search accelerator)... */
