@@ -35,19 +35,21 @@ RM = rm -f
 
 # Files
 LZG = lzg
-UNLZG = unlzg
 LZG_OBJS = lzg.o
+UNLZG = unlzg
 UNLZG_OBJS = unlzg.o
+BENCHMARK = benchmark
+BENCHMARK_OBJS = benchmark.o
 STATIC_LIB = ../lib/liblzg.a
 
 .PHONY: all clean
 
 # Master rule
-all: $(LZG) $(UNLZG)
+all: $(LZG) $(UNLZG) $(BENCHMARK)
 
 # Clean rule
 clean:
-	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS)
+	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS) $(BENCHMARK) $(BENCHMARK_OBJS)
 
 # Program build rules
 $(LZG): $(LZG_OBJS) $(STATIC_LIB)
@@ -56,10 +58,16 @@ $(LZG): $(LZG_OBJS) $(STATIC_LIB)
 $(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB)
 	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
 
+$(BENCHMARK): $(BENCHMARK_OBJS) $(STATIC_LIB)
+	$(LC) $(LFLAGS) -o $@ $(BENCHMARK_OBJS) $(LIBS)
+
 # Object files build rules
 lzg.o: lzg.c ../include/lzg.h
 	$(CC) $(CFLAGS) $<
 
 unlzg.o: unlzg.c ../include/lzg.h
+	$(CC) $(CFLAGS) $<
+
+benchmark.o: benchmark.c ../include/lzg.h
 	$(CC) $(CFLAGS) $<
 
