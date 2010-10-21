@@ -26,12 +26,12 @@
 */
 
 #include "internal.h"
-#include <string.h>
+
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
-/* Comment this out for extra speed (the decoder will not be as safe, but
-   unless the checksum test is broken there should be no problem). */
+/* Comment this out for extra speed (never turn array bounds checks off unless
+   you can fully trust the source data). */
 #define _LZG_STRICT_BOUNDS_CHECK
 
 #define _LZG_GetUINT32(in, offs) \
