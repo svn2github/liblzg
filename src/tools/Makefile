@@ -33,6 +33,26 @@ LFLAGS = -L../lib
 LIBS = -llzg
 RM = rm -f
 
+# Benchmark configuration
+USE_ZLIB = YES
+USE_BZ2 = NO
+USE_LZMA = NO
+
+BM_CFLAGS = $(CFLAGS)
+BM_LIBS = $(LIBS)
+ifeq ($(USE_ZLIB),YES)
+BM_CFLAGS += -DUSE_ZLIB
+BM_LIBS += -lz
+endif
+ifeq ($(USE_BZ2),YES)
+BM_CFLAGS += -DUSE_BZ2
+BM_LIBS += -lbz2
+endif
+ifeq ($(USE_LZMA),YES)
+BM_CFLAGS += -DUSE_LZMA
+BM_LIBS += -llzma
+endif
+
 # Files
 LZG = lzg
 LZG_OBJS = lzg.o
@@ -59,7 +79,7 @@ $(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB)
 	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
 
 $(BENCHMARK): $(BENCHMARK_OBJS) $(STATIC_LIB)
-	$(LC) $(LFLAGS) -o $@ $(BENCHMARK_OBJS) $(LIBS)
+	$(LC) $(LFLAGS) -o $@ $(BENCHMARK_OBJS) $(BM_LIBS)
 
 # Object files build rules
 lzg.o: lzg.c ../include/lzg.h
@@ -69,5 +89,5 @@ unlzg.o: unlzg.c ../include/lzg.h
 	$(CC) $(CFLAGS) $<
 
 benchmark.o: benchmark.c ../include/lzg.h
-	$(CC) $(CFLAGS) $<
+	$(CC) $(BM_CFLAGS) $<
 
