@@ -41,7 +41,7 @@
      ((unsigned int)in[offs+3]))
 
 /* LUT for decoding the copy length parameter */
-static const unsigned char _LZG_LENGTH_LUT[32] = {
+static const unsigned char _LZG_LENGTH_DECODE_LUT[32] = {
     2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
     18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
 };
@@ -156,13 +156,13 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 else if (symbol == marker2)
                 {
                     /* Near copy */
-                    length = _LZG_LENGTH_LUT[b & 0x1f];
+                    length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     offset = (b >> 5) + 1;
                 }
                 else
                 {
                     /* Generic copy */
-                    length = _LZG_LENGTH_LUT[b & 0x1f];
+                    length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     offset = ((unsigned int) (b & 0xe0)) << 2;
 
                     /* Decode offset using varying size coding:
