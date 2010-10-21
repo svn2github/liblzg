@@ -338,7 +338,7 @@ int main(int argc, char **argv)
             level = 9;
         else if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
-        else if (strcmp("-lzf", argv[arg]) == 0)
+        else if (strcmp("-lzg", argv[arg]) == 0)
             InitCodecLZG(&c);
 #ifdef USE_ZLIB
         else if (strcmp("-zlib", argv[arg]) == 0)
