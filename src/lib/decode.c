@@ -66,11 +66,8 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned char *out, unsigned int outsize)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b;
-    unsigned char marker1, marker2, marker3;
-    unsigned int  i, length, offset;
-    unsigned int  encodedSize, decodedSize;
-    unsigned int  checksum;
-    unsigned char method;
+    unsigned char marker1, marker2, marker3, method;
+    unsigned int  i, length, offset, encodedSize, decodedSize, checksum;
 
     /* Does the input buffer at least contain the header? */
     if (insize < LZG_HEADER_SIZE)
