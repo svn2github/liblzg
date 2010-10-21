@@ -35,7 +35,7 @@ RM = rm -f
 
 # Benchmark configuration
 USE_ZLIB = YES
-USE_BZ2 = NO
+USE_BZ2 = YES
 USE_LZMA = NO
 
 BM_CFLAGS = $(CFLAGS)

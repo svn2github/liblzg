@@ -214,15 +214,56 @@ static unsigned int BZ2_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
     unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
 {
-    // FIXME
-    return 0;
+    int ret;
+    unsigned int compressedSize;
+    bz_stream strm;
+
+    if (progressfun)
+        progressfun(0, userdata);
+
+    strm.bzalloc = NULL;
+    strm.bzfree = NULL;
+    strm.opaque = NULL;
+    ret = BZ2_bzCompressInit(&strm, level, 0, 0);
+    if (ret != BZ_OK) return 0;
+    strm.avail_in = decSize;
+    strm.next_in = (char*)decBuf;
+    strm.avail_out = maxEncSize;
+    strm.next_out = (char*)encBuf;
+    ret = BZ2_bzCompress(&strm, BZ_FINISH);
+    compressedSize = maxEncSize - strm.avail_out;
+    BZ2_bzCompressEnd(&strm);
+    if (ret != BZ_STREAM_END) return 0;
+
+    if (progressfun)
+        progressfun(100, userdata);
+
+    return compressedSize;
 }
 
 static unsigned int BZ2_Decode_wrapper(const unsigned char *encBuf,
     unsigned int encSize, unsigned char *decBuf, unsigned int decSize)
 {
-    // FIXME
-    return 0;
+    int ret;
+    unsigned int decompressedSize;
+    bz_stream strm;
+
+    strm.bzalloc = NULL;
+    strm.bzfree = NULL;
+    strm.opaque = NULL;
+    strm.avail_in = 0;
+    strm.next_in = Z_NULL;
+    ret = BZ2_bzDecompressInit(&strm, 0, 0);
+    if (ret != BZ_OK) return 0;
+    strm.avail_in = encSize;
+    strm.next_in = (char*)encBuf;
+    strm.avail_out = decSize;
+    strm.next_out = (char*)decBuf;
+    ret = BZ2_bzDecompress(&strm);
+    decompressedSize = decSize - strm.avail_out;
+    BZ2_bzDecompressEnd(&strm);
+    if (ret != BZ_STREAM_END) return 0;
+    return decompressedSize;
 }
 
 static void InitCodecBZ2(codec_t *c)
