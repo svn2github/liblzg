@@ -292,12 +292,12 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         length = _LZG_LENGTH_ENCODE_LUT[length];
 
         /* Improvement in match length? */
-        if (length > bestLength)
+        if (UNLIKELY(length > bestLength))
         {
             dist = (size_t)(pos - pos2);
 
             /* Get actual compression win for this match */
-            if ((dist <= 8) || ((length <= 6) && (dist <= 71)))
+            if (UNLIKELY((dist <= 8) || ((length <= 6) && (dist <= 71))))
                 win = length + symbolCost - 3;
             else
             {
@@ -311,7 +311,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
                 bestWin = win;
                 *offset = dist;
                 bestLength = length;
-                if (length == 33)
+                if (UNLIKELY(length == 33))
                     break;
             }
         }
@@ -383,7 +383,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         if (progressfun)
         {
             progress = (100 * (src - in)) / insize;
-            if (progress != oldProgress)
+            if (UNLIKELY(progress != oldProgress))
             {
                 progressfun(progress, userdata);
                 oldProgress = progress;
@@ -408,38 +408,38 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         lengthEnc = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
                                    &offset);
 
-        if (lengthEnc > 0)
+        if (UNLIKELY(lengthEnc > 0))
         {
             if ((lengthEnc <= 6) && (offset >= 9) && (offset <= 71))
             {
                 /* Short copy */
-                if ((dst + 2) > outEnd) goto overflow;
+                if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
                 *dst++ = marker2;
                 *dst++ = ((lengthEnc - 3) << 6) | (offset - 8);
             }
             else if (offset <= 8)
             {
                 /* Near copy */
-                if ((dst + 2) > outEnd) goto overflow;
+                if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
                 *dst++ = marker3;
                 *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
             else
             {
                 /* Generic copy */
-                if (dst >= outEnd) goto overflow;
+                if (UNLIKELY(dst >= outEnd)) goto overflow;
                 *dst++ = marker1;
                 offset -= 8;
                 if (offset >= 1024)
                 {
-                    if ((dst + 3) > outEnd) goto overflow;
+                    if (UNLIKELY((dst + 3) > outEnd)) goto overflow;
                     *dst++ = ((offset >> 10) & 0xe0) | (lengthEnc - 2);
                     *dst++ = (offset >> 8) | 0x80;
                     *dst++ = offset;
                 }
                 else
                 {
-                    if ((dst + 2) > outEnd) goto overflow;
+                    if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
                     *dst++ = ((offset >> 2) & 0xe0) | (lengthEnc - 2);
                     *dst++ = offset & 0x7f;
                 }
@@ -456,14 +456,14 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         else
         {
             /* Plain copy */
-            if (dst >= outEnd) goto overflow;
+            if (UNLIKELY(dst >= outEnd)) goto overflow;
             *dst++ = symbol;
             ++src;
 
             /* Was this symbol equal to any of the markers? */
-            if (isMarkerSymbol)
+            if (UNLIKELY(isMarkerSymbol))
             {
-                if (dst >= outEnd) goto overflow;
+                if (UNLIKELY(dst >= outEnd)) goto overflow;
                 *dst++ = 0;
             }
         }
