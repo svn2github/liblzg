@@ -57,21 +57,21 @@
         [M3] [0] => [M3]
 
     Copy from back buffer (Length bytes, Offset bytes back):
-        [M1] [%lloooooo]
-            Length' = %000000ll + 3  (3-6)
-            Offset  = %00oooooo + 8  (9-71)
-
-        [M2] [%ooolllll]
-            Length' = %000lllll + 2  (3-33)
-            Offset  = %00000ooo + 1  (1-8)
-
-        [M3] [%ooolllll] [%0mmmmmmm]
+        [M1] [%ooolllll] [%0mmmmmmm]
             Length' = %000lllll + 2           (3-33)
             Offset  = %000000oo ommmmmmm + 8  (9-1032)
 
-        [M3] [%ooolllll] [%1mmmmmmm] [%nnnnnnnn]
+        [M1] [%ooolllll] [%1mmmmmmm] [%nnnnnnnn]
             Length' = %000lllll + 2                    (3-33)
             Offset  = %000000oo ommmmmmm nnnnnnnn + 8  (9-262152)
+
+        [M2] [%lloooooo]
+            Length' = %000000ll + 3  (3-6)
+            Offset  = %00oooooo + 8  (9-71)
+
+        [M3] [%ooolllll]
+            Length' = %000lllll + 2  (3-33)
+            Offset  = %00000ooo + 1  (1-8)
 
     Length encoding:
         Length' = 33  =>  Length = 128
@@ -414,21 +414,21 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
             {
                 /* Short copy */
                 if ((dst + 2) > outEnd) goto overflow;
-                *dst++ = marker1;
+                *dst++ = marker2;
                 *dst++ = ((lengthEnc - 3) << 6) | (offset - 8);
             }
             else if (offset <= 8)
             {
                 /* Near copy */
                 if ((dst + 2) > outEnd) goto overflow;
-                *dst++ = marker2;
+                *dst++ = marker3;
                 *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
             else
             {
                 /* Generic copy */
                 if (dst >= outEnd) goto overflow;
-                *dst++ = marker3;
+                *dst++ = marker1;
                 offset -= 8;
                 if (offset >= 1024)
                 {

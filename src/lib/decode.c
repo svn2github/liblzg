@@ -68,6 +68,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b;
     unsigned char marker1, marker2, marker3, method;
     unsigned int  i, length, offset, encodedSize, decodedSize, checksum;
+    char isMarkerSymbol[255];
 
     /* Does the input buffer at least contain the header? */
     if (insize < LZG_HEADER_SIZE)
@@ -125,6 +126,13 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     marker2 = *src++;
     marker3 = *src++;
 
+    /* Initialize marker symbol LUT */
+    for (i = 0; i < 256; ++i)
+        isMarkerSymbol[i] = 0;
+    isMarkerSymbol[marker1] = 1;
+    isMarkerSymbol[marker2] = 1;
+    isMarkerSymbol[marker3] = 1;
+
     /* Main decompression loop */
     while (src < inEnd)
     {
@@ -132,31 +140,24 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
         symbol = *src++;
 
         /* Marker symbol? */
-        if ((symbol == marker1) ||
-            (symbol == marker2) ||
-            (symbol == marker3))
+        if (LIKELY(!isMarkerSymbol[symbol]))
+        {
+            /* Plain copy */
+#ifdef _LZG_STRICT_BOUNDS_CHECK
+            if (dst >= outEnd) return 0;
+#endif
+            *dst++ = symbol;
+        }
+        else
         {
 #ifdef _LZG_STRICT_BOUNDS_CHECK
             if (src >= inEnd) return 0;
 #endif
             b = *src++;
-
-            if (b)
+            if (LIKELY(b))
             {
                 /* Decode offset / length parameters */
-                if (symbol == marker1)
-                {
-                    /* Short copy */
-                    length = (b >> 6) + 3;
-                    offset = (b & 0x3f) + 8;
-                }
-                else if (symbol == marker2)
-                {
-                    /* Near copy */
-                    length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
-                    offset = (b >> 5) + 1;
-                }
-                else
+                if (LIKELY(symbol == marker1))
                 {
                     /* Generic copy */
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
@@ -171,7 +172,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
 #endif
                     b = *src++;
                     offset |= b & 0x7f;
-                    if (b >= 0x80)
+                    if (LIKELY(b >= 0x80))
                     {
 #ifdef _LZG_STRICT_BOUNDS_CHECK
                         if (src >= inEnd) return 0;
@@ -179,6 +180,18 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                         offset = (offset << 8) | (*src++);
                     }
                     offset += 8;
+                }
+                else if (LIKELY(symbol == marker2))
+                {
+                    /* Short copy */
+                    length = (b >> 6) + 3;
+                    offset = (b & 0x3f) + 8;
+                }
+                else
+                {
+                    /* Near copy */
+                    length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
+                    offset = (b >> 5) + 1;
                 }
 
                 /* Copy corresponding data from history window */
@@ -208,16 +221,16 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                     case 3:  *dst++ = *copy++; case 2:  *dst++ = *copy++;
                     case 1:  *dst++ = *copy++;
                 }
-
-                continue;
+            }
+            else
+            {
+                /* Single occurance of a marker symbol... */
+#ifdef _LZG_STRICT_BOUNDS_CHECK
+                if (dst >= outEnd) return 0;
+#endif
+                *dst++ = symbol;
             }
         }
-
-        /* Plain copy (or single occurance of a marker symbol)... */
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-        if (dst >= outEnd) return 0;
-#endif
-        *dst++ = symbol;
     }
 
     /* Did we get the right number of output bytes? */
