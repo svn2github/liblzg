@@ -144,14 +144,14 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
         {
             /* Plain copy */
 #ifdef _LZG_STRICT_BOUNDS_CHECK
-            if (dst >= outEnd) return 0;
+            if (UNLIKELY(dst >= outEnd)) return 0;
 #endif
             *dst++ = symbol;
         }
         else
         {
 #ifdef _LZG_STRICT_BOUNDS_CHECK
-            if (src >= inEnd) return 0;
+            if (UNLIKELY(src >= inEnd)) return 0;
 #endif
             b = *src++;
             if (LIKELY(b))
@@ -168,14 +168,14 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                        1025-262144:    +2 bytes
                     */
 #ifdef _LZG_STRICT_BOUNDS_CHECK
-                    if (src >= inEnd) return 0;
+                    if (UNLIKELY(src >= inEnd)) return 0;
 #endif
                     b = *src++;
                     offset |= b & 0x7f;
                     if (LIKELY(b >= 0x80))
                     {
 #ifdef _LZG_STRICT_BOUNDS_CHECK
-                        if (src >= inEnd) return 0;
+                        if (UNLIKELY(src >= inEnd)) return 0;
 #endif
                         offset = (offset << 8) | (*src++);
                     }
@@ -198,7 +198,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 /* Note: We use loop unrolling to improve the speed */
                 copy = dst - offset;
 #ifdef _LZG_STRICT_BOUNDS_CHECK
-                if ((copy < out) || ((dst + length) > outEnd)) return 0;
+                if (UNLIKELY((copy < out) || ((dst + length) > outEnd))) return 0;
 #endif
                 switch (length)
                 {
@@ -226,7 +226,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
             {
                 /* Single occurance of a marker symbol... */
 #ifdef _LZG_STRICT_BOUNDS_CHECK
-                if (dst >= outEnd) return 0;
+                if (UNLIKELY(dst >= outEnd)) return 0;
 #endif
                 *dst++ = symbol;
             }
