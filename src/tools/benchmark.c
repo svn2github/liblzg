@@ -132,6 +132,33 @@ static void InitCodecLZG(codec_t *c)
     c->Decode = LZG_Decode;
 }
 
+static unsigned int MEMCPY_MaxEncodedSize_wrapper(unsigned int insize)
+{
+    return insize;
+}
+
+static unsigned int MEMCPY_Encode_wrapper(const unsigned char *decBuf,
+    unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
+    unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
+{
+    memcpy(encBuf, decBuf, decSize);
+    return decSize;
+}
+
+static unsigned int MEMCPY_Decode_wrapper(const unsigned char *encBuf,
+    unsigned int encSize, unsigned char *decBuf, unsigned int decSize)
+{
+    memcpy(decBuf, encBuf, encSize);
+    return encSize;
+}
+
+static void InitCodecMEMCPY(codec_t *c)
+{
+    c->MaxEncodedSize = MEMCPY_MaxEncodedSize_wrapper;
+    c->Encode = MEMCPY_Encode_wrapper;
+    c->Decode = MEMCPY_Decode_wrapper;
+}
+
 #ifdef USE_ZLIB
 static unsigned int ZLIB_MaxEncodedSize_wrapper(unsigned int insize)
 {
@@ -324,6 +351,7 @@ void ShowUsage(char *prgName)
 #ifdef USE_LZMA
     fprintf(stderr, " -lzma Use lzma compression.\n");
 #endif
+    fprintf(stderr, " -memcpy Use memcpy \"compression\" (raw 1:1 copy).\n");
     fprintf(stderr, "\nDescription:\n");
     fprintf(stderr, "This program will load the given file, compress it, and then decompress it\n");
     fprintf(stderr, "again. The time it takes to do the operations are measured (excluding file\n");
@@ -393,6 +421,8 @@ int main(int argc, char **argv)
         else if (strcmp("-lzma", argv[arg]) == 0)
             InitCodecLZMA(&c);
 #endif
+        else if (strcmp("-memcpy", argv[arg]) == 0)
+            InitCodecMEMCPY(&c);
         else if (!inName)
             inName = argv[arg];
         else
