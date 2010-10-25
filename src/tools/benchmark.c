@@ -141,14 +141,31 @@ static unsigned int MEMCPY_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
     unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
 {
-    memcpy(encBuf, decBuf, decSize);
+    unsigned int i, progress, oldProgress = 999;
+    for (i = 0; i < decSize; ++i)
+    {
+        if (progressfun && !(i & 1023))
+        {
+            progress = (100 * i) / decSize;
+            if (progress != oldProgress)
+            {
+                progressfun(progress, userdata);
+                oldProgress = progress;
+            }
+        }
+        encBuf[i] = decBuf[i];
+    }
+    if (progressfun)
+        progressfun(100, userdata);
     return decSize;
 }
 
 static unsigned int MEMCPY_Decode_wrapper(const unsigned char *encBuf,
     unsigned int encSize, unsigned char *decBuf, unsigned int decSize)
 {
-    memcpy(decBuf, encBuf, encSize);
+    unsigned int i;
+    for (i = 0; i < encSize; ++i)
+        decBuf[i] = encBuf[i];
     return encSize;
 }
 
