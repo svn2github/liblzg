@@ -26,21 +26,52 @@
 */
 
 /*
-* NOTE: This is actually the Adler-32 algorithm, as described in Wikipedia.
-* Reference: http://en.wikipedia.org/wiki/Adler-32
+* Description:
+* This is a very fast 32-bit checksum algorithm. It is essentially a modified
+* version of the Adler-32 algorithm, with modulo 65536 instead of modulo 65521
+* (i.e. it's closer to Fletcher-32).
+*
+* This method was chosen over Adler-32 and regular CRC-32 since it is an order
+* of magnitude faster than both of them (otherwise the checksum calculation
+* takes almost the same time as the decompression routine), while still being
+* as robust as Adler-32 (which is used in zlib, for instance).
+*
+* References:
+*     http://en.wikipedia.org/wiki/Adler-32
+*     http://en.wikipedia.org/wiki/Fletcher's_checksum
 */
+
+#define CHECKSUM_OP(ptr,a,b) do { \
+    a += *ptr++; \
+    b += a; \
+} while(0)
 
 unsigned int _LZG_CalcChecksum(const unsigned char *data, unsigned int size)
 {
-    unsigned int a = 1, b = 0;
-    unsigned int i;
+    unsigned short a = 1, b = 0;
+    unsigned int size8, sizediv8;
+    unsigned char *ptr, *end;
 
-    for (i = 0; i < size; ++i)
+    ptr = (unsigned char*)data;
+
+    /* Loop unrolling (modulo 8) */
+    sizediv8 = size / 8;
+    size8 = sizediv8 * 8;
+    end = (unsigned char*)ptr + size8;
+    while (ptr < end)
     {
-        a = (a + data[i]) % 65521;
-        b = (b + a) % 65521;
+        CHECKSUM_OP(ptr, a, b); CHECKSUM_OP(ptr, a, b);
+        CHECKSUM_OP(ptr, a, b); CHECKSUM_OP(ptr, a, b);
+        CHECKSUM_OP(ptr, a, b); CHECKSUM_OP(ptr, a, b);
+        CHECKSUM_OP(ptr, a, b); CHECKSUM_OP(ptr, a, b);
     }
 
-    return (b << 16) | a;
-}
+    /* Finish up remaining data */
+    size -= size8;
+    while (size--)
+    {
+        CHECKSUM_OP(ptr, a, b);
+    }
 
+    return (((unsigned int)b) << 16) | a;
+}
