@@ -65,7 +65,7 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
 unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned char *out, unsigned int outsize)
 {
-    unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b;
+    unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b, b2;
     unsigned char marker1, marker2, marker3, method;
     unsigned int  i, length, offset, encodedSize, decodedSize, checksum;
     char isMarkerSymbol[255];
@@ -161,23 +161,29 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 {
                     /* Generic copy */
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
-                    offset = ((unsigned int) (b & 0xe0)) << 2;
 
                     /* Decode offset using varying size coding:
                        1-1024:         +1 byte
                        1025-262144:    +2 bytes
                     */
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-                    if (UNLIKELY(src >= inEnd)) return 0;
-#endif
-                    b = *src++;
-                    offset |= b & 0x7f;
                     if (LIKELY(b >= 0x80))
+                    {
+#ifdef _LZG_STRICT_BOUNDS_CHECK
+                        if (UNLIKELY((src + 2) > inEnd)) return 0;
+#endif
+                        b2 = *src++;
+                        offset = (((unsigned int)(b & 0x60)) << 11) |
+                                  (((unsigned int)b2) << 8) |
+                                  (*src++);
+                    }
+                    else
                     {
 #ifdef _LZG_STRICT_BOUNDS_CHECK
                         if (UNLIKELY(src >= inEnd)) return 0;
 #endif
-                        offset = (offset << 8) | (*src++);
+                        b2 = *src++;
+                        offset = (((unsigned int)(b & 0x60)) << 3) |
+                                 b2;
                     }
                     offset += 8;
                 }
@@ -195,11 +201,12 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 }
 
                 /* Copy corresponding data from history window */
-                /* Note: We use loop unrolling to improve the speed */
                 copy = dst - offset;
 #ifdef _LZG_STRICT_BOUNDS_CHECK
                 if (UNLIKELY((copy < out) || ((dst + length) > outEnd))) return 0;
 #endif
+
+                /* Note: We use loop unrolling to improve the speed */
                 switch (length)
                 {
                     default:

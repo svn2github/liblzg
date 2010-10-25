@@ -57,13 +57,13 @@
         [M3] [0] => [M3]
 
     Copy from back buffer (Length bytes, Offset bytes back):
-        [M1] [%ooolllll] [%0mmmmmmm]
+        [M1] [%0oolllll] [%mmmmmmmm]
             Length' = %000lllll + 2           (3-33)
-            Offset  = %000000oo ommmmmmm + 8  (9-1032)
+            Offset  = %000000oo mmmmmmmm + 8  (9-1032)
 
-        [M1] [%ooolllll] [%1mmmmmmm] [%nnnnnnnn]
+        [M1] [%1oolllll] [%mmmmmmmm] [%nnnnnnnn]
             Length' = %000lllll + 2                    (3-33)
-            Offset  = %000000oo ommmmmmm nnnnnnnn + 8  (9-262152)
+            Offset  = %000000oo mmmmmmmm nnnnnnnn + 8  (9-262152)
 
         [M2] [%lloooooo]
             Length' = %000000ll + 3  (3-6)
@@ -410,39 +410,38 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 
         if (UNLIKELY(lengthEnc > 0))
         {
-            if ((lengthEnc <= 6) && (offset >= 9) && (offset <= 71))
+            if (UNLIKELY((lengthEnc <= 6) && (offset >= 9) && (offset <= 71)))
             {
-                /* Short copy */
+                /* Short copy (emit 2 bytes) */
                 if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
                 *dst++ = marker2;
                 *dst++ = ((lengthEnc - 3) << 6) | (offset - 8);
             }
-            else if (offset <= 8)
+            else if (UNLIKELY(offset <= 8))
             {
-                /* Near copy */
+                /* Near copy (emit 2 bytes) */
                 if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
                 *dst++ = marker3;
                 *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
+            else if (LIKELY(offset >= 1024))
+            {
+                /* Generic copy (emit 4 bytes) */
+                if (UNLIKELY((dst + 4) > outEnd)) goto overflow;
+                offset -= 8;
+                *dst++ = marker1;
+                *dst++ = 0x80 | ((offset >> 11) & 0x60) | (lengthEnc - 2);
+                *dst++ = (offset >> 8);
+                *dst++ = offset;
+            }
             else
             {
-                /* Generic copy */
-                if (UNLIKELY(dst >= outEnd)) goto overflow;
-                *dst++ = marker1;
+                /* Generic copy (emit 3 bytes) */
+                if (UNLIKELY((dst + 3) > outEnd)) goto overflow;
                 offset -= 8;
-                if (offset >= 1024)
-                {
-                    if (UNLIKELY((dst + 3) > outEnd)) goto overflow;
-                    *dst++ = ((offset >> 10) & 0xe0) | (lengthEnc - 2);
-                    *dst++ = (offset >> 8) | 0x80;
-                    *dst++ = offset;
-                }
-                else
-                {
-                    if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
-                    *dst++ = ((offset >> 2) & 0xe0) | (lengthEnc - 2);
-                    *dst++ = offset & 0x7f;
-                }
+                *dst++ = marker1;
+                *dst++ = ((offset >> 3) & 0x60) | (lengthEnc - 2);
+                *dst++ = offset;
             }
 
             /* Decode non-linear length */
