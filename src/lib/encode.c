@@ -33,9 +33,10 @@
     Compressed data format
     ----------------------
 
-        M1 = marker symbol 1, "Short copy"
-        M2 = marker symbol 2, "Near copy / RLE"
-        M3 = marker symbol 3, "Generic copy"
+        M1 = marker symbol 1, "Distant copy"
+        M2 = marker symbol 2, "Medium copy"
+        M3 = marker symbol 3, "Short copy"
+        M4 = marker symbol 4, "Near copy (incl. RLE)"
         [x] = one byte
         {x} = one 32-bit unsigned word (big endian)
         %xxxxxxxx = 8 bits

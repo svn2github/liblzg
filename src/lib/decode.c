@@ -161,10 +161,10 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 /* Decode offset / length parameters */
                 if (LIKELY(symbol == marker1))
                 {
+                    /* Distant copy */
 #ifdef _LZG_STRICT_BOUNDS_CHECK
                     if (UNLIKELY((src + 2) > inEnd)) return 0;
 #endif
-                    /* Long copy */
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     b2 = *src++;
                     offset = (((unsigned int)(b & 0xe0)) << 11) |
@@ -174,10 +174,10 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 }
                 else if (LIKELY(symbol == marker2))
                 {
+                    /* Medium copy */
 #ifdef _LZG_STRICT_BOUNDS_CHECK
                     if (UNLIKELY(src >= inEnd)) return 0;
 #endif
-                    /* Medium copy */
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     b2 = *src++;
                     offset = (((unsigned int)(b & 0xe0)) << 3) | b2;
@@ -191,7 +191,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 }
                 else
                 {
-                    /* Near copy */
+                    /* Near copy (including RLE) */
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     offset = (b >> 5) + 1;
                 }
