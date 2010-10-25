@@ -122,15 +122,15 @@ extern "C" {
 * @endcode
 */
 
-#define LZG_LEVEL_1 1032    /**< @brief Lowest/fastest compression level */
-#define LZG_LEVEL_2 2048    /**< @brief Compression level 2 */
-#define LZG_LEVEL_3 4096    /**< @brief Compression level 3 */
-#define LZG_LEVEL_4 8192    /**< @brief Compression level 4 */
-#define LZG_LEVEL_5 16384   /**< @brief Medium compression level */
-#define LZG_LEVEL_6 32768   /**< @brief Compression level 6 */
-#define LZG_LEVEL_7 65536   /**< @brief Compression level 7 */
-#define LZG_LEVEL_8 131072  /**< @brief Compression level 8 */
-#define LZG_LEVEL_9 262152  /**< @brief Best/slowest compression level */
+#define LZG_LEVEL_1 2056    /**< @brief Lowest/fastest compression level */
+#define LZG_LEVEL_2 4096    /**< @brief Compression level 2 */
+#define LZG_LEVEL_3 8192    /**< @brief Compression level 3 */
+#define LZG_LEVEL_4 16384   /**< @brief Compression level 4 */
+#define LZG_LEVEL_5 32768   /**< @brief Medium compression level */
+#define LZG_LEVEL_6 65536   /**< @brief Compression level 6 */
+#define LZG_LEVEL_7 131072  /**< @brief Compression level 7 */
+#define LZG_LEVEL_8 262144  /**< @brief Compression level 8 */
+#define LZG_LEVEL_9 526342  /**< @brief Best/slowest compression level */
 
 /** @brief Default compression level */
 #define LZG_LEVEL_DEFAULT LZG_LEVEL_5
@@ -173,9 +173,9 @@ typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
 *         (e.g. if the end of the output buffer was reached before the
 *         entire input buffer was encoded).
 * @note For the slow method (fast = 0), the memory requirement during
-* compression is 4 * (window + 65536) bytes, which translates to 132 KB for
-* a window of LZG_LEVEL_1, and 1 MB for LZG_LEVEL_9. For the fast method
-* (fast = 1), the memory requirement is 64 MB (LZG_LEVEL_1) to 65 MB
+* compression is 4 * (window + 65536) bytes, which translates to 136 KB for
+* a window of LZG_LEVEL_1, and 2 MB for LZG_LEVEL_9. For the fast method
+* (fast = 1), the memory requirement is 64 MB (LZG_LEVEL_1) to 66 MB
 * (LZG_LEVEL_9). Also note that these figures are doubled on 64-bit systems.
 */
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,

@@ -48,28 +48,29 @@
         [method]
 
     LZG1 data stream start:
-        [M1] [M2] [M3]
+        [M1] [M2] [M3] [M4]
 
     Single occurance of a symbol:
-        [x]      => [x]     (x != M1,M2,M3)
+        [x]      => [x]     (x != M1,M2,M3, M4)
         [M1] [0] => [M1]
         [M2] [0] => [M2]
         [M3] [0] => [M3]
+        [M4] [0] => [M4]
 
     Copy from back buffer (Length bytes, Offset bytes back):
-        [M1] [%0oolllll] [%mmmmmmmm]
+        [M1] [%ooolllll] [%mmmmmmmm]
             Length' = %000lllll + 2           (3-33)
-            Offset  = %000000oo mmmmmmmm + 8  (9-1032)
+            Offset  = %00000ooo mmmmmmmm + 8  (9-2056)
 
-        [M1] [%1oolllll] [%mmmmmmmm] [%nnnnnnnn]
-            Length' = %000lllll + 2                    (3-33)
-            Offset  = %000000oo mmmmmmmm nnnnnnnn + 8  (9-262152)
+        [M2] [%ooolllll] [%mmmmmmmm] [%nnnnnnnn]
+            Length' = %000lllll + 2                       (3-33)
+            Offset  = %00000ooo mmmmmmmm nnnnnnnn + 2056  (2057-526342)
 
-        [M2] [%lloooooo]
+        [M3] [%lloooooo]
             Length' = %000000ll + 3  (3-6)
             Offset  = %00oooooo + 8  (9-71)
 
-        [M3] [%ooolllll]
+        [M4] [%ooolllll]
             Length' = %000lllll + 2  (3-33)
             Offset  = %00000ooo + 1  (1-8)
 
@@ -86,7 +87,7 @@
 
 /* Limits */
 #define _LZG_MAX_RUN_LENGTH 128
-#define _LZG_MAX_OFFSET     262152
+#define _LZG_MAX_OFFSET     526342
 
 /* LUT for encoding the copy length parameter */
 static const unsigned char _LZG_LENGTH_ENCODE_LUT[129] = {
@@ -150,7 +151,7 @@ static int hist_rec_compare(const void *p1, const void *p2)
 
 static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
     unsigned char *leastCommon1, unsigned char *leastCommon2,
-    unsigned char *leastCommon3)
+    unsigned char *leastCommon3, unsigned char *leastCommon4)
 {
     hist_rec *hist;
     unsigned int i;
@@ -178,6 +179,7 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
     *leastCommon1 = (unsigned char) hist[0].symbol;
     *leastCommon2 = (unsigned char) hist[1].symbol;
     *leastCommon3 = (unsigned char) hist[2].symbol;
+    *leastCommon4 = (unsigned char) hist[3].symbol;
 
     /* Free memory for histogram */
     free(hist);
@@ -302,7 +304,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
             else
             {
                 win = length + symbolCost - 4;
-                if (dist >= 1033) --win;
+                if (dist >= 2057) --win;
             }
 
             /* Best so far? */
@@ -341,7 +343,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     int fast, LZGPROGRESSFUN progressfun, void *userdata)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
-    unsigned char marker1, marker2, marker3;
+    unsigned char marker1, marker2, marker3, marker4;
     size_t lengthEnc, length, offset = 0, symbolCost, i;
     int isMarkerSymbol, progress, oldProgress = -1;
     search_accel *sa = (search_accel*) 0;
@@ -356,7 +358,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         window = _LZG_MAX_OFFSET;
 
     /* Calculate histogram and find optimal marker symbols */
-    if (!_LZG_DetermineMarkers(in, insize, &marker1, &marker2, &marker3))
+    if (!_LZG_DetermineMarkers(in, insize, &marker1, &marker2, &marker3,
+                               &marker4))
         goto fail;
 
     /* Initialize search accelerator */
@@ -371,10 +374,11 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     outEnd = out + outsize;
 
     /* Set marker symbols */
-    if ((dst + 3) > outEnd) goto overflow;
+    if ((dst + 4) > outEnd) goto overflow;
     *dst++ = marker1;
     *dst++ = marker2;
     *dst++ = marker3;
+    *dst++ = marker4;
 
     /* Main compression loop */
     while (src < inEnd)
@@ -396,7 +400,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         /* Is this a marker symbol? */
         isMarkerSymbol = (symbol == marker1) ||
                          (symbol == marker2) ||
-                         (symbol == marker3);
+                         (symbol == marker3) ||
+                         (symbol == marker4);
 
         /* What's the cost for this symbol if we do not compress */
         symbolCost = isMarkerSymbol ? 2 : 1;
@@ -414,23 +419,23 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
             {
                 /* Short copy (emit 2 bytes) */
                 if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
-                *dst++ = marker2;
+                *dst++ = marker3;
                 *dst++ = ((lengthEnc - 3) << 6) | (offset - 8);
             }
             else if (UNLIKELY(offset <= 8))
             {
                 /* Near copy (emit 2 bytes) */
                 if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
-                *dst++ = marker3;
+                *dst++ = marker4;
                 *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
-            else if (LIKELY(offset >= 1024))
+            else if (LIKELY(offset >= 2057))
             {
                 /* Generic copy (emit 4 bytes) */
                 if (UNLIKELY((dst + 4) > outEnd)) goto overflow;
-                offset -= 8;
+                offset -= 2056;
                 *dst++ = marker1;
-                *dst++ = 0x80 | ((offset >> 11) & 0x60) | (lengthEnc - 2);
+                *dst++ = ((offset >> 11) & 0xe0) | (lengthEnc - 2);
                 *dst++ = (offset >> 8);
                 *dst++ = offset;
             }
@@ -439,8 +444,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                 /* Generic copy (emit 3 bytes) */
                 if (UNLIKELY((dst + 3) > outEnd)) goto overflow;
                 offset -= 8;
-                *dst++ = marker1;
-                *dst++ = ((offset >> 3) & 0x60) | (lengthEnc - 2);
+                *dst++ = marker2;
+                *dst++ = ((offset >> 3) & 0xe0) | (lengthEnc - 2);
                 *dst++ = offset;
             }
 
