@@ -380,7 +380,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     while (src < inEnd)
     {
         /* Report progress? */
-        if (progressfun)
+        if (UNLIKELY(progressfun))
         {
             progress = (100 * (src - in)) / insize;
             if (UNLIKELY(progress != oldProgress))
