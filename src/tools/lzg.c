@@ -44,6 +44,8 @@ void ShowUsage(char *prgName)
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -1  Use fastest compression\n");
     fprintf(stderr, " -9  Use best compression\n");
+    fprintf(stderr, " -v  Be verbose\n");
+    fprintf(stderr, " -s  Do not use the fast method\n");
     fprintf(stderr, "\nIf no output file is given, stdout is used for output.\n");
 }
 
@@ -56,13 +58,15 @@ int main(int argc, char **argv)
     unsigned int decSize = 0;
     unsigned char *encBuf;
     unsigned int maxEncSize, encSize;
-    int arg;
+    int arg, verbose;
     lzg_encoder_config_t config;
 
     // Default arguments
     inName = NULL;
     outName = NULL;
     LZG_InitEncoderConfig(&config);
+    config.fast = 1;
+    verbose = 0;
 
     // Get arguments
     for (arg = 1; arg < argc; ++arg)
@@ -85,6 +89,10 @@ int main(int argc, char **argv)
             config.level = LZG_LEVEL_8;
         else if (strcmp("-9", argv[arg]) == 0)
             config.level = LZG_LEVEL_9;
+        else if (strcmp("-s", argv[arg]) == 0)
+            config.fast = 0;
+        else if (strcmp("-v", argv[arg]) == 0)
+            verbose = 1;
         else if (!inName)
             inName = argv[arg];
         else if (!outName)
@@ -144,13 +152,19 @@ int main(int argc, char **argv)
     if (encBuf)
     {
         // Compress
-        config.progressfun = ShowProgress;
-        config.userdata = stderr;
+        if (verbose)
+        {
+            config.progressfun = ShowProgress;
+            config.userdata = stderr;
+        }
         encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize, &config);
         if (encSize)
         {
-            fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",
-                            encSize, (100 * encSize) / decSize);
+            if (verbose)
+            {
+                fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",
+                                encSize, (100 * encSize) / decSize);
+            }
 
             // Compressed data is now in encBuf, write it...
             if (outName)

@@ -94,7 +94,7 @@ unsigned int StopTimer(void)
 typedef unsigned int (*MAXENCODEDSIZEFUN)(unsigned int insize);
 typedef unsigned int (*ENCODEFUN)(const unsigned char *decBuf, unsigned int decSize,
                                   unsigned char *encBuf, unsigned int maxEncSize,
-                                  unsigned int level, LZGPROGRESSFUN progressfun,
+                                  int level, int fast, LZGPROGRESSFUN progressfun,
                                   void *userdata);
 typedef unsigned int (*DECODEFUN)(const unsigned char *encBuf, unsigned int encSize,
                                   unsigned char *decBuf, unsigned int decSize);
@@ -108,11 +108,12 @@ typedef struct _codec_t {
 
 static unsigned int LZG_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
-    unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
+    int level, int fast, LZGPROGRESSFUN progressfun, void *userdata)
 {
     lzg_encoder_config_t config;
     LZG_InitEncoderConfig(&config);
     config.level = level;
+    config.fast = fast;
     config.progressfun = progressfun;
     config.userdata = userdata;
     return LZG_Encode(decBuf, decSize, encBuf, maxEncSize, &config);
@@ -132,7 +133,7 @@ static unsigned int MEMCPY_MaxEncodedSize_wrapper(unsigned int insize)
 
 static unsigned int MEMCPY_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int UNUSED(maxEncSize),
-    unsigned int UNUSED(level), LZGPROGRESSFUN progressfun, void *userdata)
+    int UNUSED(level), int UNUSED(fast), LZGPROGRESSFUN progressfun, void *userdata)
 {
     unsigned int i, progress, oldProgress = 999;
     for (i = 0; i < decSize; ++i)
@@ -178,7 +179,7 @@ static unsigned int ZLIB_MaxEncodedSize_wrapper(unsigned int insize)
 
 static unsigned int ZLIB_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
-    unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
+    int level, int UNUSED(fast), LZGPROGRESSFUN progressfun, void *userdata)
 {
     int ret;
     unsigned int compressedSize;
@@ -249,7 +250,7 @@ static unsigned int BZ2_MaxEncodedSize_wrapper(unsigned int insize)
 
 static unsigned int BZ2_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
-    unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
+    int level, int UNUSED(fast), LZGPROGRESSFUN progressfun, void *userdata)
 {
     int ret;
     unsigned int compressedSize;
@@ -322,6 +323,7 @@ void ShowUsage(char *prgName)
     fprintf(stderr, " -1      Use fastest compression\n");
     fprintf(stderr, " -9      Use best compression\n");
     fprintf(stderr, " -v      Be verbose\n");
+    fprintf(stderr, " -s      Do not use the fast method (LZG only)\n");
     fprintf(stderr, " -lzg    Use LZG compression (default).\n");
 #ifdef USE_ZLIB
     fprintf(stderr, " -zlib   Use zlib compression.\n");
@@ -351,8 +353,8 @@ int main(int argc, char **argv)
     unsigned char *decBuf;
     unsigned int decSize = 0;
     unsigned char *encBuf;
-    unsigned int maxEncSize, encSize, level, verbose, t;
-    int arg;
+    unsigned int maxEncSize, encSize, t;
+    int arg, level, fast, verbose;
     LZGPROGRESSFUN progressfun = 0;
     codec_t c;
 
@@ -360,6 +362,7 @@ int main(int argc, char **argv)
     inName = NULL;
     level = 5;
     verbose = 0;
+    fast = 1;
     InitCodecLZG(&c);
 
     // Get arguments
@@ -385,6 +388,8 @@ int main(int argc, char **argv)
             level = 9;
         else if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
+        else if (strcmp("-s", argv[arg]) == 0)
+            fast = 0;
         else if (strcmp("-lzg", argv[arg]) == 0)
             InitCodecLZG(&c);
 #ifdef USE_ZLIB
@@ -458,7 +463,7 @@ int main(int argc, char **argv)
             progressfun = ShowProgress;
         StartTimer();
         encSize = c.Encode(decBuf, decSize, encBuf, maxEncSize,
-                            level, progressfun, stderr);
+                            level, fast, progressfun, stderr);
         t = StopTimer();
         if (encSize)
         {
