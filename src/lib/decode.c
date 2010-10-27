@@ -30,21 +30,22 @@
 
 /*-- PRIVATE -----------------------------------------------------------------*/
 
-/* Comment this out for extra speed (never turn array bounds checks off unless
-   you can fully trust the source data). */
-#define _LZG_STRICT_BOUNDS_CHECK
+/* LUT for decoding the copy length parameter */
+static const unsigned char _LZG_LENGTH_DECODE_LUT[32] = {
+    2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
+    18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
+};
 
+/* Endian and alignment independent reader for 32-bit integers */
 #define _LZG_GetUINT32(in, offs) \
     ((((unsigned int)in[offs]) << 24) | \
      (((unsigned int)in[offs+1]) << 16) | \
      (((unsigned int)in[offs+2]) << 8) | \
      ((unsigned int)in[offs+3]))
 
-/* LUT for decoding the copy length parameter */
-static const unsigned char _LZG_LENGTH_DECODE_LUT[32] = {
-    2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
-    18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
-};
+/* This macro is used for out-of-bounds checks, to prevent invalid memory
+   accesses. */
+#define CHECK_BOUNDS(expr) if (UNLIKELY(!(expr))) return 0
 
 
 /*-- PUBLIC ------------------------------------------------------------------*/
@@ -121,7 +122,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     }
 
     /* Get marker symbols from the input stream */
-    if ((src + 3) > inEnd) return 0;
+    CHECK_BOUNDS((src + 4) <= inEnd);
     marker1 = *src++;
     marker2 = *src++;
     marker3 = *src++;
@@ -145,16 +146,12 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
         if (LIKELY(!isMarkerSymbol[symbol]))
         {
             /* Plain copy */
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-            if (UNLIKELY(dst >= outEnd)) return 0;
-#endif
+            CHECK_BOUNDS(dst < outEnd);
             *dst++ = symbol;
         }
         else
         {
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-            if (UNLIKELY(src >= inEnd)) return 0;
-#endif
+            CHECK_BOUNDS(src < inEnd);
             b = *src++;
             if (LIKELY(b))
             {
@@ -162,9 +159,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 if (LIKELY(symbol == marker1))
                 {
                     /* Distant copy */
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-                    if (UNLIKELY((src + 2) > inEnd)) return 0;
-#endif
+                    CHECK_BOUNDS((src + 2) <= inEnd);
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     b2 = *src++;
                     offset = (((unsigned int)(b & 0xe0)) << 11) |
@@ -175,9 +170,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                 else if (LIKELY(symbol == marker2))
                 {
                     /* Medium copy */
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-                    if (UNLIKELY(src >= inEnd)) return 0;
-#endif
+                    CHECK_BOUNDS(src < inEnd);
                     length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                     b2 = *src++;
                     offset = (((unsigned int)(b & 0xe0)) << 3) | b2;
@@ -198,9 +191,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
 
                 /* Copy corresponding data from history window */
                 copy = dst - offset;
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-                if (UNLIKELY((copy < out) || ((dst + length) > outEnd))) return 0;
-#endif
+                CHECK_BOUNDS((copy >= out) && ((dst + length) <= outEnd));
 
                 /* Note: We use loop unrolling to improve the speed */
                 switch (length)
@@ -228,9 +219,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
             else
             {
                 /* Single occurance of a marker symbol... */
-#ifdef _LZG_STRICT_BOUNDS_CHECK
-                if (UNLIKELY(dst >= outEnd)) return 0;
-#endif
+                CHECK_BOUNDS(dst < outEnd);
                 *dst++ = symbol;
             }
         }
