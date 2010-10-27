@@ -88,7 +88,6 @@
 
 /* Limits */
 #define _LZG_MAX_RUN_LENGTH 128
-#define _LZG_MAX_OFFSET     526342
 
 /* LUT for encoding the copy length parameter */
 static const unsigned char _LZG_LENGTH_ENCODE_LUT[129] = {
@@ -109,10 +108,21 @@ static const unsigned char _LZG_LENGTH_DECODE_LUT[34] = {
     18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
 };
 
-/* Window size as a function of compression level */
+/* Window size as a function of compression level.
+   NOTE: The window size HAS to be a power of 2 (see _LZG_WindowModulo()). */
 static const unsigned int _LZG_WINDOW_SIZE[9] = {
-    2056, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 526342
+    2048,   /* level = 1 */
+    4096,   /* level = 2 */
+    8192,   /* level = 3 */
+    16384,  /* level = 4 */
+    32768,  /* level = 5 */
+    65536,  /* level = 6 */
+    131072, /* level = 7 */
+    262144, /* level = 8 */
+    524288  /* level = 9 */
 };
+
+#define _LZG_WindowModulo(idx,window) ((idx) & ((window)-1))
 
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
@@ -251,15 +261,15 @@ static void _LZG_UpdateLastPos(search_accel *sa,
     const unsigned char *first, unsigned char *pos)
 {
     unsigned int lIdx;
-    if (((size_t)(pos - first) + 2) >= sa->size) return;
-    if (sa->fast)
+    if (UNLIKELY(((size_t)(pos - first) + 2) >= sa->size)) return;
+    if (LIKELY(sa->fast))
         lIdx = (((unsigned int)pos[0]) << 16) |
                (((unsigned int)pos[1]) << 8) |
                ((unsigned int)pos[2]);
     else
         lIdx = (((unsigned int)pos[0]) << 8) |
                ((unsigned int)pos[1]);
-    sa->tab[(pos - first) % sa->window] = sa->last[lIdx];
+    sa->tab[_LZG_WindowModulo(pos - first, sa->window)] = sa->last[lIdx];
     sa->last[lIdx] = pos;
 }
 
@@ -280,7 +290,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         minPos = (unsigned char*)first;
 
     /* Previous search position */
-    pos2 = sa->tab[(pos - first) % window];
+    pos2 = sa->tab[_LZG_WindowModulo(pos - first, window)];
 
     /* Pre-matched by the acceleration structure */
     preMatch = sa->preMatch;
@@ -324,7 +334,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         }
 
         /* Previous search position */
-        pos2 = sa->tab[(pos2 - first) % window];
+        pos2 = sa->tab[_LZG_WindowModulo(pos2 - first, window)];
     }
 
     /* Did we get a match that would actually compress? */
