@@ -322,8 +322,8 @@ void ShowUsage(char *prgName)
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -1      Use fastest compression\n");
     fprintf(stderr, " -9      Use best compression\n");
+    fprintf(stderr, " -s      Do not use the fast method (saves memory, LZG only)\n");
     fprintf(stderr, " -v      Be verbose\n");
-    fprintf(stderr, " -s      Do not use the fast method (LZG only)\n");
     fprintf(stderr, " -lzg    Use LZG compression (default).\n");
 #ifdef USE_ZLIB
     fprintf(stderr, " -zlib   Use zlib compression.\n");

@@ -25,6 +25,8 @@
 *    distribution.
 */
 
+#include "internal.h"
+
 /*
 * Description:
 * This is a very fast 32-bit checksum algorithm. It is essentially a modified

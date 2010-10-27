@@ -32,6 +32,13 @@
 extern "C" {
 #endif
 
+#define LZG_VERSION "1.0.0"    /**< @brief LZG library version string */
+#define LZG_VERNUM  0x01000000 /**< @brief LZG library version number (strictly
+                                    incremental) */
+#define LZG_VER_MAJOR    1     /**< @brief LZG library major version */
+#define LZG_VER_MINOR    0     /**< @brief LZG library minor version */
+#define LZG_VER_REVISION 0     /**< @brief LZG library revision */
+
 /**
 * @file
 * @mainpage
@@ -53,6 +60,9 @@ extern "C" {
 * @li LZG_DecodedSize() - Determine the size of the decoded data for a given
 *                         LZG coded buffer.
 * @li LZG_Decode() - Decode LZG coded data.
+*
+* @li LZG_Version() - Get the version of the LZG library.
+* @li LZG_VersionString() - Get the version of the LZG library.
 *
 * @section compr_sec Compression
 * Here is a simple example of compressing an uncompressed data buffer (given
@@ -250,6 +260,22 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize);
 */
 unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
                         unsigned char *out, unsigned int outsize);
+
+
+/**
+* Get the version of the LZG library.
+* @return The version of the LZG library, on the same format as
+*         @ref LZG_VERNUM.
+*/
+unsigned int LZG_Version(void);
+
+
+/**
+* Get the version string of the LZG library.
+* @return The version of the LZG library, on the same format as
+*         @ref LZG_VERSION.
+*/
+const char* LZG_VersionString(void);
 
 #ifdef __cplusplus
 }

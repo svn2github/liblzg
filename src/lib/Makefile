@@ -36,7 +36,8 @@ RM = rm -f
 STATIC_LIB = liblzg.a
 OBJS = encode.o \
        decode.o \
-       checksum.o
+       checksum.o \
+       version.o
 
 # Master rule
 all: $(STATIC_LIB)
@@ -56,6 +57,9 @@ encode.o: encode.c internal.h ../include/lzg.h
 decode.o: decode.c internal.h ../include/lzg.h
 	$(CC) $(CFLAGS) $<
 
-checksum.o: checksum.c
+checksum.o: checksum.c internal.h ../include/lzg.h
+	$(CC) $(CFLAGS) $<
+
+version.o: version.c internal.h ../include/lzg.h
 	$(CC) $(CFLAGS) $<
 

@@ -44,8 +44,9 @@ void ShowUsage(char *prgName)
     fprintf(stderr, "\nOptions:\n");
     fprintf(stderr, " -1  Use fastest compression\n");
     fprintf(stderr, " -9  Use best compression\n");
+    fprintf(stderr, " -s  Do not use the fast method (saves memory)\n");
     fprintf(stderr, " -v  Be verbose\n");
-    fprintf(stderr, " -s  Do not use the fast method\n");
+    fprintf(stderr, " -V  Show LZG library version and exit\n");
     fprintf(stderr, "\nIf no output file is given, stdout is used for output.\n");
 }
 
@@ -93,6 +94,11 @@ int main(int argc, char **argv)
             config.fast = 0;
         else if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
+        else if (strcmp("-V", argv[arg]) == 0)
+        {
+            printf("LZG library version %s\n", LZG_VersionString());
+            return 0;
+        }
         else if (!inName)
             inName = argv[arg];
         else if (!outName)
