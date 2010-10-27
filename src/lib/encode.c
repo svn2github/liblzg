@@ -109,6 +109,10 @@ static const unsigned char _LZG_LENGTH_DECODE_LUT[34] = {
     18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
 };
 
+/* Window size as a function of compression level */
+static const unsigned int _LZG_WINDOW_SIZE[9] = {
+    2056, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 526342
+};
 
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
@@ -331,7 +335,6 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
 }
 
 
-
 /*-- PUBLIC ------------------------------------------------------------------*/
 
 unsigned int LZG_MaxEncodedSize(unsigned int insize)
@@ -339,24 +342,48 @@ unsigned int LZG_MaxEncodedSize(unsigned int insize)
     return LZG_HEADER_SIZE + insize;
 }
 
+void LZG_InitEncoderConfig(lzg_encoder_config_t *config)
+{
+    /* Set the default values */
+    config->level = LZG_LEVEL_DEFAULT;
+    config->fast = 1;
+    config->progressfun = NULL;
+    config->userdata = NULL;
+}
+
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-    unsigned char *out, unsigned int outsize, unsigned int window,
-    int fast, LZGPROGRESSFUN progressfun, void *userdata)
+    unsigned char *out, unsigned int outsize, lzg_encoder_config_t *config)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char marker1, marker2, marker3, marker4;
+    unsigned int window;
     size_t lengthEnc, length, offset = 0, symbolCost, i;
-    int isMarkerSymbol, progress, oldProgress = -1;
+    int level, isMarkerSymbol, progress, oldProgress = -1;
     search_accel *sa = (search_accel*) 0;
+    lzg_encoder_config_t defaultConfig;
     lzg_header hdr;
 
     /* Check arguments */
-    if ((!in) || (!out) || (window < 1) || (outsize < (LZG_HEADER_SIZE + insize)))
+    if ((!in) || (!out) || (outsize < (LZG_HEADER_SIZE + insize)))
         goto fail;
 
-    /* Limit the window */
-    if (window > _LZG_MAX_OFFSET)
-        window = _LZG_MAX_OFFSET;
+    /* Use default configuration? */
+    if (!config)
+    {
+        LZG_InitEncoderConfig(&defaultConfig);
+        config = &defaultConfig;
+    }
+
+    /* Clamp the compression level to [1, 9] */
+    if (config->level < 1)
+        level = 1;
+    else if (config->level > 9)
+        level = 9;
+    else
+        level = config->level;
+
+    /* Get the window size */
+    window = _LZG_WINDOW_SIZE[level - 1];
 
     /* Calculate histogram and find optimal marker symbols */
     if (!_LZG_DetermineMarkers(in, insize, &marker1, &marker2, &marker3,
@@ -364,7 +391,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         goto fail;
 
     /* Initialize search accelerator */
-    sa = _LZG_SearchAccel_Create(window, insize, fast);
+    sa = _LZG_SearchAccel_Create(window, insize, config->fast);
     if (!sa)
         goto fail;
 
@@ -385,12 +412,12 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     while (src < inEnd)
     {
         /* Report progress? */
-        if (UNLIKELY(progressfun))
+        if (UNLIKELY(config->progressfun))
         {
             progress = (100 * (src - in)) / insize;
             if (UNLIKELY(progress != oldProgress))
             {
-                progressfun(progress, userdata);
+                config->progressfun(progress, config->userdata);
                 oldProgress = progress;
             }
         }
@@ -475,8 +502,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     }
 
     /* Report progress? (we're done now) */
-    if (progressfun)
-        progressfun(100, userdata);
+    if (config->progressfun)
+        config->progressfun(100, config->userdata);
 
     /* Set header data */
     hdr.method = LZG_METHOD_LZG1;
@@ -496,8 +523,8 @@ overflow:
     memcpy(out + LZG_HEADER_SIZE, in, insize);
 
     /* Report progress? (we're done now) */
-    if (progressfun)
-        progressfun(100, userdata);
+    if (config->progressfun)
+        config->progressfun(100, config->userdata);
 
     /* Set header data */
     hdr.method = LZG_METHOD_COPY;

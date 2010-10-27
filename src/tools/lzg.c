@@ -55,35 +55,36 @@ int main(int argc, char **argv)
     unsigned char *decBuf;
     unsigned int decSize = 0;
     unsigned char *encBuf;
-    unsigned int maxEncSize, encSize, level;
+    unsigned int maxEncSize, encSize;
     int arg;
+    lzg_encoder_config_t config;
 
     // Default arguments
     inName = NULL;
     outName = NULL;
-    level = LZG_LEVEL_DEFAULT;
+    LZG_InitEncoderConfig(&config);
 
     // Get arguments
     for (arg = 1; arg < argc; ++arg)
     {
         if (strcmp("-1", argv[arg]) == 0)
-            level = LZG_LEVEL_1;
+            config.level = LZG_LEVEL_1;
         else if (strcmp("-2", argv[arg]) == 0)
-            level = LZG_LEVEL_2;
+            config.level = LZG_LEVEL_2;
         else if (strcmp("-3", argv[arg]) == 0)
-            level = LZG_LEVEL_3;
+            config.level = LZG_LEVEL_3;
         else if (strcmp("-4", argv[arg]) == 0)
-            level = LZG_LEVEL_4;
+            config.level = LZG_LEVEL_4;
         else if (strcmp("-5", argv[arg]) == 0)
-            level = LZG_LEVEL_5;
+            config.level = LZG_LEVEL_5;
         else if (strcmp("-6", argv[arg]) == 0)
-            level = LZG_LEVEL_6;
+            config.level = LZG_LEVEL_6;
         else if (strcmp("-7", argv[arg]) == 0)
-            level = LZG_LEVEL_7;
+            config.level = LZG_LEVEL_7;
         else if (strcmp("-8", argv[arg]) == 0)
-            level = LZG_LEVEL_8;
+            config.level = LZG_LEVEL_8;
         else if (strcmp("-9", argv[arg]) == 0)
-            level = LZG_LEVEL_9;
+            config.level = LZG_LEVEL_9;
         else if (!inName)
             inName = argv[arg];
         else if (!outName)
@@ -143,8 +144,9 @@ int main(int argc, char **argv)
     if (encBuf)
     {
         // Compress
-        encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize,
-                             level, 1, ShowProgress, stderr);
+        config.progressfun = ShowProgress;
+        config.userdata = stderr;
+        encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize, &config);
         if (encSize)
         {
             fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",

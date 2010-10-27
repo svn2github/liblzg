@@ -47,6 +47,7 @@ extern "C" {
 *
 * @li LZG_MaxEncodedSize() - Determine the maximum size of the encoded data for
 *                            a given uncompressed buffer (worst case).
+* @li LZG_InitEncoderConfig() - Set default encoder configuration.
 * @li LZG_Encode() - Encode uncompressed data as LZG coded data.
 *
 * @li LZG_DecodedSize() - Determine the size of the decoded data for a given
@@ -69,7 +70,7 @@ extern "C" {
 *     if (encBuf)
 *     {
 *         // Compress
-*         encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, LZG_LEVEL_DEFAULT, 1, NULL, NULL);
+*         encSize = LZG_Encode(buf, bufSize, encBuf, maxEncSize, NULL);
 *         if (encSize)
 *         {
 *             // Compressed data is now in encBuf, use it...
@@ -122,18 +123,70 @@ extern "C" {
 * @endcode
 */
 
-#define LZG_LEVEL_1 2056    /**< @brief Lowest/fastest compression level */
-#define LZG_LEVEL_2 4096    /**< @brief Compression level 2 */
-#define LZG_LEVEL_3 8192    /**< @brief Compression level 3 */
-#define LZG_LEVEL_4 16384   /**< @brief Compression level 4 */
-#define LZG_LEVEL_5 32768   /**< @brief Medium compression level */
-#define LZG_LEVEL_6 65536   /**< @brief Compression level 6 */
-#define LZG_LEVEL_7 131072  /**< @brief Compression level 7 */
-#define LZG_LEVEL_8 262144  /**< @brief Compression level 8 */
-#define LZG_LEVEL_9 526342  /**< @brief Best/slowest compression level */
+#define LZG_LEVEL_1 1  /**< @brief Lowest/fastest compression level */
+#define LZG_LEVEL_2 2  /**< @brief Compression level 2 */
+#define LZG_LEVEL_3 3  /**< @brief Compression level 3 */
+#define LZG_LEVEL_4 4  /**< @brief Compression level 4 */
+#define LZG_LEVEL_5 5  /**< @brief Medium compression level */
+#define LZG_LEVEL_6 6  /**< @brief Compression level 6 */
+#define LZG_LEVEL_7 7  /**< @brief Compression level 7 */
+#define LZG_LEVEL_8 8  /**< @brief Compression level 8 */
+#define LZG_LEVEL_9 9  /**< @brief Best/slowest compression level */
 
 /** @brief Default compression level */
 #define LZG_LEVEL_DEFAULT LZG_LEVEL_5
+
+/**
+* Progress callback function.
+* @param[in] progress The current progress (0-100).
+* @param[in] userdata User supplied data pointer.
+*/
+typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
+
+/** @brief LZG compression configuration parameters.
+*
+* This structure is used for passing configuration options to the LZG_Encode()
+* function. Initialize this structure to default values with
+* @ref LZG_InitEncoderConfig().
+*/
+typedef struct {
+    /** @brief Compression level (1-9).
+
+        For convenience, you can use the predefined constants
+        @ref LZG_LEVEL_1 (fast) to @ref LZG_LEVEL_9 (slow), or
+        @ref LZG_LEVEL_DEFAULT.
+
+        Default value: LZG_LEVEL_DEFAULT */
+    int level;
+
+    /** @brief Use fast method (0 or 1).
+
+        Boolean flag that specifies whether or not to use a faster encoding
+        acceleration data structure. The resulting compressed data is
+        identical regardless of the value passed here, but the amount of
+        memory used is different.
+
+        Default value: 1 */
+    int fast;
+
+    /** @brief Encoding progress callback function.
+
+        This function will be called during compression to report progress
+        back to the caller (set this to NULL to disable progress
+        callback).
+
+        Default value: NULL */
+    LZGPROGRESSFUN progressfun;
+
+    /** @brief User data pointer for the progress callback function.
+
+        A user defined data pointer that can point to anything that the
+        progress callback function may need, such as an object reference
+        (this can set to NULL if the callback function does not need it).
+
+        Default value: NULL */
+    void *userdata;
+} lzg_encoder_config_t;
 
 
 /**
@@ -145,11 +198,10 @@ extern "C" {
 unsigned int LZG_MaxEncodedSize(unsigned int insize);
 
 /**
-* Progress callback function.
-* @param[in] progress The current progress (0-100).
-* @param[in] userdata User supplied data pointer.
+* Initialize an encoder configuration object.
+* @param[out] config Configuration object.
 */
-typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
+void LZG_InitEncoderConfig(lzg_encoder_config_t *config);
 
 /**
 * Encode uncompressed data using the LZG coder (i.e. compress the data).
@@ -157,31 +209,20 @@ typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
 * @param[in]  insize Size of the input buffer (number of bytes).
 * @param[out] out Output (compressed) buffer.
 * @param[in]  outsize Size of the output buffer (number of bytes).
-* @param[in]  window Compression search window (bigger is better and slower).
-*             For convenience, you can use the predefined constants
-*             @ref LZG_LEVEL_1 (fast) to @ref LZG_LEVEL_9 (slow), or
-*             @ref LZG_LEVEL_DEFAULT.
-* @param[in]  fast Boolean flag (0 or 1), that specifies whether or not to use
-*             a faster encoding acceleration data structure. The resulting
-*             compressed data is identical regardless of the value passed
-*             here, but the amount of memory used is different.
-* @param[in]  progressfun Encoding progress callback function (set this to NULL
-*             to disable progress callback).
-* @param[in]  userdata User data pointer for the progress callback function
-*             (this can set to NULL).
+* @param[in]  config Compression configuration (if set to NULL, default encoder
+*             configuration parameters are used).
 * @return The size of the encoded data, or zero if the function failed
 *         (e.g. if the end of the output buffer was reached before the
 *         entire input buffer was encoded).
-* @note For the slow method (fast = 0), the memory requirement during
-* compression is 4 * (window + 65536) bytes, which translates to 136 KB for
-* a window of LZG_LEVEL_1, and 2 MB for LZG_LEVEL_9. For the fast method
-* (fast = 1), the memory requirement is 64 MB (LZG_LEVEL_1) to 66 MB
-* (LZG_LEVEL_9). Also note that these figures are doubled on 64-bit systems.
+* @note For the slow method (config->fast = 0), the memory requirement during
+* compression is 136 KB (LZG_LEVEL_1) to 2 MB (LZG_LEVEL_9). For the fast
+* method (config->fast = 1), the memory requirement is 64 MB (LZG_LEVEL_1) to
+* 66 MB (LZG_LEVEL_9). Also note that these figures are doubled on 64-bit
+* systems.
 */
 unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
                         unsigned char *out, unsigned int outsize,
-                        unsigned int window, int fast,
-                        LZGPROGRESSFUN progressfun, void *userdata);
+                        lzg_encoder_config_t *config);
 
 
 /**

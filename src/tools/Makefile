@@ -34,9 +34,8 @@ LIBS = -llzg
 RM = rm -f
 
 # Benchmark configuration
-USE_ZLIB = YES
-USE_BZ2 = YES
-USE_LZMA = NO
+USE_ZLIB = NO
+USE_BZ2 = NO
 
 BM_CFLAGS = $(CFLAGS)
 BM_LIBS = $(LIBS)
@@ -47,10 +46,6 @@ endif
 ifeq ($(USE_BZ2),YES)
 BM_CFLAGS += -DUSE_BZ2
 BM_LIBS += -lbz2
-endif
-ifeq ($(USE_LZMA),YES)
-BM_CFLAGS += -DUSE_LZMA
-BM_LIBS += -llzma
 endif
 
 # Files

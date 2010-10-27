@@ -36,8 +36,11 @@
 #ifdef USE_BZ2
 # include <bzlib.h>
 #endif
-#ifdef USE_LZMA
-# include <lzma.h>
+
+#if defined(__GNUC__)
+# define UNUSED(x) UNUSED_ ## x __attribute__((unused))
+#else
+# define UNUSED(x) x
 #endif
 
 
@@ -107,22 +110,12 @@ static unsigned int LZG_Encode_wrapper(const unsigned char *decBuf,
     unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
     unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
 {
-    switch (level)
-    {
-        case 1: level = LZG_LEVEL_1; break;
-        case 2: level = LZG_LEVEL_2; break;
-        case 3: level = LZG_LEVEL_3; break;
-        case 4: level = LZG_LEVEL_4; break;
-        default:
-        case 5: level = LZG_LEVEL_5; break;
-        case 6: level = LZG_LEVEL_6; break;
-        case 7: level = LZG_LEVEL_7; break;
-        case 8: level = LZG_LEVEL_8; break;
-        case 9: level = LZG_LEVEL_9; break;
-    }
-
-    return LZG_Encode(decBuf, decSize, encBuf, maxEncSize, level, 1,
-                      progressfun, userdata);
+    lzg_encoder_config_t config;
+    LZG_InitEncoderConfig(&config);
+    config.level = level;
+    config.progressfun = progressfun;
+    config.userdata = userdata;
+    return LZG_Encode(decBuf, decSize, encBuf, maxEncSize, &config);
 }
 
 static void InitCodecLZG(codec_t *c)
@@ -138,8 +131,8 @@ static unsigned int MEMCPY_MaxEncodedSize_wrapper(unsigned int insize)
 }
 
 static unsigned int MEMCPY_Encode_wrapper(const unsigned char *decBuf,
-    unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
-    unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
+    unsigned int decSize, unsigned char *encBuf, unsigned int UNUSED(maxEncSize),
+    unsigned int UNUSED(level), LZGPROGRESSFUN progressfun, void *userdata)
 {
     unsigned int i, progress, oldProgress = 999;
     for (i = 0; i < decSize; ++i)
@@ -161,7 +154,7 @@ static unsigned int MEMCPY_Encode_wrapper(const unsigned char *decBuf,
 }
 
 static unsigned int MEMCPY_Decode_wrapper(const unsigned char *encBuf,
-    unsigned int encSize, unsigned char *decBuf, unsigned int decSize)
+    unsigned int encSize, unsigned char *decBuf, unsigned int UNUSED(decSize))
 {
     unsigned int i;
     for (i = 0; i < encSize; ++i)
@@ -318,35 +311,6 @@ static void InitCodecBZ2(codec_t *c)
 }
 #endif
 
-#ifdef USE_LZMA
-static unsigned int LZMA_MaxEncodedSize_wrapper(unsigned int insize)
-{
-    // FIXME
-    return insize * 2 + 1000;
-}
-
-static unsigned int LZMA_Encode_wrapper(const unsigned char *decBuf,
-    unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
-    unsigned int level, LZGPROGRESSFUN progressfun, void *userdata)
-{
-    // FIXME
-    return 0;
-}
-
-static unsigned int LZMA_Decode_wrapper(const unsigned char *encBuf,
-    unsigned int encSize, unsigned char *decBuf, unsigned int decSize)
-{
-    // FIXME
-    return 0;
-}
-
-static void InitCodecLZMA(codec_t *c)
-{
-    c->MaxEncodedSize = LZMA_MaxEncodedSize_wrapper;
-    c->Encode = LZMA_Encode_wrapper;
-    c->Decode = LZMA_Decode_wrapper;
-}
-#endif
 
 /*-- (end of dynamic codec class) -------------------------------------------*/
 
@@ -355,18 +319,15 @@ void ShowUsage(char *prgName)
 {
     fprintf(stderr, "Usage: %s [options] file\n", prgName);
     fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, " -1    Use fastest compression\n");
-    fprintf(stderr, " -9    Use best compression\n");
-    fprintf(stderr, " -v    Be verbose\n");
-    fprintf(stderr, " -lzg  Use LZG compression (default).\n");
+    fprintf(stderr, " -1      Use fastest compression\n");
+    fprintf(stderr, " -9      Use best compression\n");
+    fprintf(stderr, " -v      Be verbose\n");
+    fprintf(stderr, " -lzg    Use LZG compression (default).\n");
 #ifdef USE_ZLIB
-    fprintf(stderr, " -zlib Use zlib compression.\n");
+    fprintf(stderr, " -zlib   Use zlib compression.\n");
 #endif
 #ifdef USE_BZ2
-    fprintf(stderr, " -bz2  Use bzip2 compression.\n");
-#endif
-#ifdef USE_LZMA
-    fprintf(stderr, " -lzma Use lzma compression.\n");
+    fprintf(stderr, " -bz2    Use bzip2 compression.\n");
 #endif
     fprintf(stderr, " -memcpy Use memcpy \"compression\" (raw 1:1 copy).\n");
     fprintf(stderr, "\nDescription:\n");
@@ -433,10 +394,6 @@ int main(int argc, char **argv)
 #ifdef USE_BZ2
         else if (strcmp("-bz2", argv[arg]) == 0)
             InitCodecBZ2(&c);
-#endif
-#ifdef USE_LZMA
-        else if (strcmp("-lzma", argv[arg]) == 0)
-            InitCodecLZMA(&c);
 #endif
         else if (strcmp("-memcpy", argv[arg]) == 0)
             InitCodecMEMCPY(&c);
