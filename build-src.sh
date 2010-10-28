@@ -9,7 +9,7 @@ cd src && make -f Makefile clean && cd ..
 
 # Build all the necessary files
 echo Building documentation...
-cd doc && make -f Makefile clean && make -f Makefile clean && cd ..
+cd doc && make -f Makefile clean && make -f Makefile && cd ..
 
 # Set up a temporary directory
 tmproot=/tmp/liblzg-$USER-$$
@@ -27,12 +27,14 @@ cp src/include/*.h $tmpdir/src/include/
 mkdir $tmpdir/src/lib
 cp src/lib/*.c src/lib/*.h src/lib/Makefile* $tmpdir/src/lib/
 mkdir $tmpdir/src/tools
-cp src/tools/*.c src/tools/*.h src/tools/Makefile* $tmpdir/src/tools/
+cp src/tools/*.c src/tools/Makefile* $tmpdir/src/tools/
 
 mkdir $tmpdir/doc
 cp doc/*.svg $tmpdir/doc/
 mkdir $tmpdir/doc/APIReference
 cp doc/APIReference/* $tmpdir/doc/APIReference/
+mkdir $tmpdir/doc/APIReference/search
+cp doc/APIReference/search/* $tmpdir/doc/APIReference/search/
 
 # Create archives
 olddir=`pwd`
