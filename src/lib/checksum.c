@@ -48,10 +48,10 @@
     b += a; \
 } while(0)
 
-unsigned int _LZG_CalcChecksum(const unsigned char *data, unsigned int size)
+lzg_uint32_t _LZG_CalcChecksum(const unsigned char *data, lzg_uint32_t size)
 {
     unsigned short a = 1, b = 0;
-    unsigned int size8, sizediv8;
+    lzg_uint32_t size8, sizediv8;
     unsigned char *ptr, *end;
 
     ptr = (unsigned char*)data;
@@ -75,5 +75,5 @@ unsigned int _LZG_CalcChecksum(const unsigned char *data, unsigned int size)
         CHECKSUM_OP(ptr, a, b);
     }
 
-    return (((unsigned int)b) << 16) | a;
+    return (((lzg_uint32_t)b) << 16) | a;
 }

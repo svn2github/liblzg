@@ -56,9 +56,9 @@ int main(int argc, char **argv)
     FILE *inFile, *outFile;
     size_t fileSize;
     unsigned char *decBuf;
-    unsigned int decSize = 0;
+    lzg_uint32_t decSize = 0;
     unsigned char *encBuf;
-    unsigned int maxEncSize, encSize;
+    lzg_uint32_t maxEncSize, encSize;
     int arg, verbose;
     lzg_encoder_config_t config;
 
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
     inName = NULL;
     outName = NULL;
     LZG_InitEncoderConfig(&config);
-    config.fast = 1;
+    config.fast = LZG_TRUE;
     verbose = 0;
 
     // Get arguments
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
         else if (strcmp("-9", argv[arg]) == 0)
             config.level = LZG_LEVEL_9;
         else if (strcmp("-s", argv[arg]) == 0)
-            config.fast = 0;
+            config.fast = LZG_FALSE;
         else if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
         else if (strcmp("-V", argv[arg]) == 0)
@@ -121,11 +121,11 @@ int main(int argc, char **argv)
     if (inFile)
     {
         fseek(inFile, 0, SEEK_END);
-        fileSize = (unsigned int) ftell(inFile);
+        fileSize = (size_t) ftell(inFile);
         fseek(inFile, 0, SEEK_SET);
         if (fileSize > 0)
         {
-            decSize = (unsigned int) fileSize;
+            decSize = (lzg_uint32_t) fileSize;
             decBuf = (unsigned char*) malloc(decSize);
             if (decBuf)
             {

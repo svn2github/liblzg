@@ -34,9 +34,9 @@ int main(int argc, char **argv)
     FILE *inFile, *outFile;
     size_t fileSize;
     unsigned char *encBuf;
-    unsigned int encSize = 0;
+    lzg_uint32_t encSize = 0;
     unsigned char *decBuf;
-    unsigned int decSize;
+    lzg_uint32_t decSize;
     int useStdout = 0;
 
     // Check arguments
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
         fseek(inFile, 0, SEEK_SET);
         if (fileSize > 0)
         {
-            encSize = (unsigned int) fileSize;
+            encSize = (lzg_uint32_t) fileSize;
             encBuf = (unsigned char*) malloc(encSize);
             if (encBuf)
             {

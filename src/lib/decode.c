@@ -38,10 +38,10 @@ static const unsigned char _LZG_LENGTH_DECODE_LUT[32] = {
 
 /* Endian and alignment independent reader for 32-bit integers */
 #define _LZG_GetUINT32(in, offs) \
-    ((((unsigned int)in[offs]) << 24) | \
-     (((unsigned int)in[offs+1]) << 16) | \
-     (((unsigned int)in[offs+2]) << 8) | \
-     ((unsigned int)in[offs+3]))
+    ((((lzg_uint32_t)in[offs]) << 24) | \
+     (((lzg_uint32_t)in[offs+1]) << 16) | \
+     (((lzg_uint32_t)in[offs+2]) << 8) | \
+     ((lzg_uint32_t)in[offs+3]))
 
 /* This macro is used for out-of-bounds checks, to prevent invalid memory
    accesses. */
@@ -50,7 +50,7 @@ static const unsigned char _LZG_LENGTH_DECODE_LUT[32] = {
 
 /*-- PUBLIC ------------------------------------------------------------------*/
 
-unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
+lzg_uint32_t LZG_DecodedSize(const unsigned char *in, lzg_uint32_t insize)
 {
     if (insize < 7)
         return 0;
@@ -63,12 +63,12 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize)
     return _LZG_GetUINT32(in, 3);
 }
 
-unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
-    unsigned char *out, unsigned int outsize)
+unsigned int LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
+    unsigned char *out, lzg_uint32_t outsize)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b, b2;
     unsigned char marker1, marker2, marker3, marker4, method;
-    unsigned int  i, length, offset, encodedSize, decodedSize, checksum;
+    lzg_uint32_t  i, length, offset, encodedSize, decodedSize, checksum;
     char isMarkerSymbolLUT[255];
 
     /* Does the input buffer at least contain the header? */

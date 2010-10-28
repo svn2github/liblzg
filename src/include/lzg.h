@@ -70,7 +70,7 @@ extern "C" {
 *
 * @code
 *     unsigned char *encBuf;
-*     unsigned int encSize, maxEncSize;
+*     lzg_uint32_t encSize, maxEncSize;
 *
 *     // Determine maximum size of compressed data
 *     maxEncSize = LZG_MaxEncodedSize(bufSize);
@@ -102,7 +102,7 @@ extern "C" {
 *
 * @code
 *     unsigned char *decBuf;
-*     unsigned int decSize;
+*     lzg_uint32_t decSize;
 *
 *     // Determine size of decompressed data
 *     decSize = LZG_DecodedSize(buf, bufSize);
@@ -133,6 +133,15 @@ extern "C" {
 * @endcode
 */
 
+/* Basic types */
+typedef int          lzg_bool_t;   /**< @brief Boolean (@ref LZG_TRUE/@ref LZG_FALSE) */
+typedef int          lzg_int32_t;  /**< @brief Signed 32-bit integer */
+typedef unsigned int lzg_uint32_t; /**< @brief Unsigned 32-bit integer */
+
+#define LZG_FALSE 0 /**< @brief Boolean FALSE (see @ref lzg_bool_t) */
+#define LZG_TRUE  1 /**< @brief Boolean TRUE (see @ref lzg_bool_t) */
+
+/* Compression levels */
 #define LZG_LEVEL_1 1  /**< @brief Lowest/fastest compression level */
 #define LZG_LEVEL_2 2  /**< @brief Compression level 2 */
 #define LZG_LEVEL_3 3  /**< @brief Compression level 3 */
@@ -151,7 +160,7 @@ extern "C" {
 * @param[in] progress The current progress (0-100).
 * @param[in] userdata User supplied data pointer.
 */
-typedef void (*LZGPROGRESSFUN)(int progress, void *userdata);
+typedef void (*LZGPROGRESSFUN)(lzg_int32_t progress, void *userdata);
 
 /** @brief LZG compression configuration parameters.
 *
@@ -167,17 +176,17 @@ typedef struct {
         @ref LZG_LEVEL_DEFAULT.
 
         Default value: LZG_LEVEL_DEFAULT */
-    int level;
+    lzg_int32_t level;
 
-    /** @brief Use fast method (0 or 1).
+    /** @brief Use fast method (LZG_FALSE or LZG_TRUE).
 
         Boolean flag that specifies whether or not to use a faster encoding
         acceleration data structure. The resulting compressed data is
         identical regardless of the value passed here, but the amount of
         memory used is different.
 
-        Default value: 1 */
-    int fast;
+        Default value: LZG_TRUE */
+    lzg_bool_t fast;
 
     /** @brief Encoding progress callback function.
 
@@ -205,7 +214,7 @@ typedef struct {
 * @param[in] insize Size of the uncompressed buffer (number of bytes).
 * @return Worst case (maximum) size of the encoded data.
 */
-unsigned int LZG_MaxEncodedSize(unsigned int insize);
+lzg_uint32_t LZG_MaxEncodedSize(lzg_uint32_t insize);
 
 /**
 * Initialize an encoder configuration object.
@@ -230,8 +239,8 @@ void LZG_InitEncoderConfig(lzg_encoder_config_t *config);
 * 66 MB (LZG_LEVEL_9). Also note that these figures are doubled on 64-bit
 * systems.
 */
-unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-                        unsigned char *out, unsigned int outsize,
+lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
+                        unsigned char *out, lzg_uint32_t outsize,
                         lzg_encoder_config_t *config);
 
 
@@ -245,7 +254,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
 * @return The size of the decoded data, or zero if the function failed
 *         (e.g. if the magic header ID could not be found).
 */
-unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize);
+lzg_uint32_t LZG_DecodedSize(const unsigned char *in, lzg_uint32_t insize);
 
 
 /**
@@ -258,8 +267,8 @@ unsigned int LZG_DecodedSize(const unsigned char *in, unsigned int insize);
 *         (e.g. if the end of the output buffer was reached before the
 *         entire input buffer was decoded).
 */
-unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
-                        unsigned char *out, unsigned int outsize);
+lzg_uint32_t LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
+                        unsigned char *out, lzg_uint32_t outsize);
 
 
 /**
@@ -267,7 +276,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
 * @return The version of the LZG library, on the same format as
 *         @ref LZG_VERNUM.
 */
-unsigned int LZG_Version(void);
+lzg_uint32_t LZG_Version(void);
 
 
 /**

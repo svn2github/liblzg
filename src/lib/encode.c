@@ -219,7 +219,7 @@ typedef struct _search_accel {
 } search_accel;
 
 static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size,
-    int fast)
+    lzg_bool_t fast)
 {
     search_accel *self;
 
@@ -267,20 +267,20 @@ static void _LZG_SearchAccel_Destroy(search_accel *self)
 static void _LZG_UpdateLastPos(search_accel *sa,
     const unsigned char *first, unsigned char *pos)
 {
-    unsigned int lIdx;
+    lzg_uint32_t lIdx;
     if (UNLIKELY(((size_t)(pos - first) + 2) >= sa->size)) return;
     if (LIKELY(sa->fast))
-        lIdx = (((unsigned int)pos[0]) << 16) |
-               (((unsigned int)pos[1]) << 8) |
-               ((unsigned int)pos[2]);
+        lIdx = (((lzg_uint32_t)pos[0]) << 16) |
+               (((lzg_uint32_t)pos[1]) << 8) |
+               ((lzg_uint32_t)pos[2]);
     else
-        lIdx = (((unsigned int)pos[0]) << 8) |
-               ((unsigned int)pos[1]);
+        lIdx = (((lzg_uint32_t)pos[0]) << 8) |
+               ((lzg_uint32_t)pos[1]);
     sa->tab[_LZG_WindowModulo(pos - first, sa->window)] = sa->last[lIdx];
     sa->last[lIdx] = pos;
 }
 
-static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
+static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
   const unsigned char *end, const unsigned char *pos, size_t window,
   size_t symbolCost, size_t *offset)
 {
@@ -358,7 +358,7 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
 
 /*-- PUBLIC ------------------------------------------------------------------*/
 
-unsigned int LZG_MaxEncodedSize(unsigned int insize)
+lzg_uint32_t LZG_MaxEncodedSize(lzg_uint32_t insize)
 {
     return LZG_HEADER_SIZE + insize;
 }
@@ -367,20 +367,20 @@ void LZG_InitEncoderConfig(lzg_encoder_config_t *config)
 {
     /* Set the default values */
     config->level = LZG_LEVEL_DEFAULT;
-    config->fast = 1;
+    config->fast = LZG_TRUE;
     config->progressfun = NULL;
     config->userdata = NULL;
 }
 
-unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
-    unsigned char *out, unsigned int outsize, lzg_encoder_config_t *config)
+lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
+    unsigned char *out, lzg_uint32_t outsize, lzg_encoder_config_t *config)
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char marker1, marker2, marker3, marker4;
-    unsigned int window;
+    lzg_uint32_t window;
     size_t lengthEnc, length, offset = 0, symbolCost, i;
-    int level, isMarkerSymbol, progress, oldProgress = -1;
-    char isMarkerSymbolLUT[255];
+    int level, progress, oldProgress = -1;
+    char isMarkerSymbol, isMarkerSymbolLUT[255];
 
     search_accel *sa = (search_accel*) 0;
     lzg_encoder_config_t defaultConfig;

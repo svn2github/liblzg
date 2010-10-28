@@ -27,7 +27,7 @@
 
 #include "internal.h"
 
-unsigned int LZG_Version(void)
+lzg_uint32_t LZG_Version(void)
 {
     return LZG_VERNUM;
 }
