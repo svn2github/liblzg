@@ -103,9 +103,16 @@ static const unsigned char _LZG_LENGTH_ENCODE_LUT[129] = {
 };
 
 /* LUT for decoding the copy length parameter */
-static const unsigned char _LZG_LENGTH_DECODE_LUT[34] = {
-    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
-    18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
+static const unsigned char _LZG_LENGTH_QUANT_LUT[129] = {
+    0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,           /* 0 - 15 */
+    16,17,18,19,20,21,22,23,24,25,26,27,28,29,29,29, /* 16 - 31 */
+    29,29,29,35,35,35,35,35,35,35,35,35,35,35,35,35, /* 32 - 47 */
+    48,48,48,48,48,48,48,48,48,48,48,48,48,48,48,48, /* 48 - 63 */
+    48,48,48,48,48,48,48,48,72,72,72,72,72,72,72,72, /* 64 - 79 */
+    72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72, /* 80 - 95 */
+    72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72, /* 96 - 111 */
+    72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72, /* 112 - 127 */
+    128                                              /* 128 */
 };
 
 /* Window size as a function of compression level.
@@ -298,38 +305,42 @@ static unsigned int _LZG_FindMatch(search_accel *sa, const unsigned char *first,
     /* Main search loop */
     while (pos2 && (pos2 > minPos))
     {
-        /* Calculate maximum match length for this offset */
-        cmp1 = (unsigned char*)pos + preMatch;
-        cmp2 = pos2 + preMatch;
-        length = preMatch;
-        while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
-            ++length;
-
-        /* Encode length using a non-linear scale */
-        length = _LZG_LENGTH_ENCODE_LUT[length];
-
-        /* Improvement in match length? */
-        if (UNLIKELY(length > bestLength))
+        /* If we don't have a match at bestLength, don't even bother... */
+        if (UNLIKELY(pos[bestLength] == pos2[bestLength]))
         {
-            dist = (size_t)(pos - pos2);
+            /* Calculate maximum match length for this offset */
+            cmp1 = (unsigned char*)pos + preMatch;
+            cmp2 = pos2 + preMatch;
+            length = preMatch;
+            while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
+                ++length;
 
-            /* Get actual compression win for this match */
-            if (UNLIKELY((dist <= 8) || ((length <= 6) && (dist <= 71))))
-                win = length + symbolCost - 3;
-            else
-            {
-                win = length + symbolCost - 4;
-                if (dist >= 2057) --win;
-            }
+            /* Quantize length */
+            length = _LZG_LENGTH_QUANT_LUT[length];
 
-            /* Best so far? */
-            if (win > bestWin)
+            /* Improvement in match length? */
+            if (UNLIKELY(length > bestLength))
             {
-                bestWin = win;
-                *offset = dist;
-                bestLength = length;
-                if (UNLIKELY(length == 33))
-                    break;
+                dist = (size_t)(pos - pos2);
+
+                /* Get actual compression win for this match */
+                if (UNLIKELY((dist <= 8) || ((length <= 6) && (dist <= 71))))
+                    win = length + symbolCost - 3;
+                else
+                {
+                    win = length + symbolCost - 4;
+                    if (dist >= 2057) --win;
+                }
+
+                /* Best so far? */
+                if (LIKELY(win > bestWin))
+                {
+                    bestWin = win;
+                    *offset = dist;
+                    bestLength = length;
+                    if (UNLIKELY(length == 128))
+                        break;
+                }
             }
         }
 
@@ -369,6 +380,8 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     unsigned int window;
     size_t lengthEnc, length, offset = 0, symbolCost, i;
     int level, isMarkerSymbol, progress, oldProgress = -1;
+    char isMarkerSymbolLUT[255];
+
     search_accel *sa = (search_accel*) 0;
     lzg_encoder_config_t defaultConfig;
     lzg_header hdr;
@@ -418,6 +431,14 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
     *dst++ = marker3;
     *dst++ = marker4;
 
+    /* Initialize marker symbol LUT */
+    for (i = 0; i < 256; ++i)
+        isMarkerSymbolLUT[i] = 0;
+    isMarkerSymbolLUT[marker1] = 1;
+    isMarkerSymbolLUT[marker2] = 1;
+    isMarkerSymbolLUT[marker3] = 1;
+    isMarkerSymbolLUT[marker4] = 1;
+
     /* Main compression loop */
     while (src < inEnd)
     {
@@ -436,10 +457,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         symbol = *src;
 
         /* Is this a marker symbol? */
-        isMarkerSymbol = (symbol == marker1) ||
-                         (symbol == marker2) ||
-                         (symbol == marker3) ||
-                         (symbol == marker4);
+        isMarkerSymbol = isMarkerSymbolLUT[symbol];
 
         /* What's the cost for this symbol if we do not compress */
         symbolCost = isMarkerSymbol ? 2 : 1;
@@ -448,22 +466,23 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
         _LZG_UpdateLastPos(sa, in, src);
 
         /* Find best history match for this position in the input buffer */
-        lengthEnc = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
-                                   &offset);
+        length = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
+                                &offset);
 
-        if (UNLIKELY(lengthEnc > 0))
+        if (UNLIKELY(length > 0))
         {
-            if (UNLIKELY((lengthEnc <= 6) && (offset >= 9) && (offset <= 71)))
+            if (UNLIKELY((length <= 6) && (offset >= 9) && (offset <= 71)))
             {
                 /* Short copy (emit 2 bytes) */
                 if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
                 *dst++ = marker3;
-                *dst++ = ((lengthEnc - 3) << 6) | (offset - 8);
+                *dst++ = ((length - 3) << 6) | (offset - 8);
             }
             else if (UNLIKELY(offset <= 8))
             {
                 /* Near copy (emit 2 bytes) */
                 if (UNLIKELY((dst + 2) > outEnd)) goto overflow;
+                lengthEnc = _LZG_LENGTH_ENCODE_LUT[length];
                 *dst++ = marker4;
                 *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
@@ -471,6 +490,7 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
             {
                 /* Generic copy (emit 4 bytes) */
                 if (UNLIKELY((dst + 4) > outEnd)) goto overflow;
+                lengthEnc = _LZG_LENGTH_ENCODE_LUT[length];
                 offset -= 2056;
                 *dst++ = marker1;
                 *dst++ = ((offset >> 11) & 0xe0) | (lengthEnc - 2);
@@ -481,14 +501,12 @@ unsigned int LZG_Encode(const unsigned char *in, unsigned int insize,
             {
                 /* Generic copy (emit 3 bytes) */
                 if (UNLIKELY((dst + 3) > outEnd)) goto overflow;
+                lengthEnc = _LZG_LENGTH_ENCODE_LUT[length];
                 offset -= 8;
                 *dst++ = marker2;
                 *dst++ = ((offset >> 3) & 0xe0) | (lengthEnc - 2);
                 *dst++ = offset;
             }
-
-            /* Decode non-linear length */
-            length = _LZG_LENGTH_DECODE_LUT[lengthEnc];
 
             /* Skip ahead (and update search accelerator)... */
             for (i = 1; i < length; ++i)

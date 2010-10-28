@@ -69,7 +69,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b, b2;
     unsigned char marker1, marker2, marker3, marker4, method;
     unsigned int  i, length, offset, encodedSize, decodedSize, checksum;
-    char isMarkerSymbol[255];
+    char isMarkerSymbolLUT[255];
 
     /* Does the input buffer at least contain the header? */
     if (insize < LZG_HEADER_SIZE)
@@ -130,11 +130,11 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
 
     /* Initialize marker symbol LUT */
     for (i = 0; i < 256; ++i)
-        isMarkerSymbol[i] = 0;
-    isMarkerSymbol[marker1] = 1;
-    isMarkerSymbol[marker2] = 1;
-    isMarkerSymbol[marker3] = 1;
-    isMarkerSymbol[marker4] = 1;
+        isMarkerSymbolLUT[i] = 0;
+    isMarkerSymbolLUT[marker1] = 1;
+    isMarkerSymbolLUT[marker2] = 1;
+    isMarkerSymbolLUT[marker3] = 1;
+    isMarkerSymbolLUT[marker4] = 1;
 
     /* Main decompression loop */
     while (src < inEnd)
@@ -143,7 +143,7 @@ unsigned int LZG_Decode(const unsigned char *in, unsigned int insize,
         symbol = *src++;
 
         /* Marker symbol? */
-        if (LIKELY(!isMarkerSymbol[symbol]))
+        if (LIKELY(!isMarkerSymbolLUT[symbol]))
         {
             /* Plain copy */
             CHECK_BOUNDS(dst < outEnd);
