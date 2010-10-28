@@ -36,6 +36,9 @@
 #ifdef USE_BZ2
 # include <bzlib.h>
 #endif
+#ifdef USE_LZO
+# include <lzo/lzo1x.h>
+#endif
 
 #if defined(__GNUC__)
 # define UNUSED(x) UNUSED_ ## x __attribute__((unused))
@@ -312,6 +315,69 @@ static void InitCodecBZ2(codec_t *c)
 }
 #endif
 
+#ifdef USE_LZO
+static unsigned int LZO_MaxEncodedSize_wrapper(unsigned int insize)
+{
+    // FIXME
+    return insize + (insize / 10) + 1000;
+}
+
+static unsigned int LZO_Encode_wrapper(const unsigned char *decBuf,
+    unsigned int decSize, unsigned char *encBuf, unsigned int maxEncSize,
+    int level, int UNUSED(fast), LZGPROGRESSFUN progressfun, void *userdata)
+{
+    lzo_uint wbufSize, compressedSize;
+    lzo_byte *workbuf;
+    int ret;
+
+    if (progressfun)
+        progressfun(0, userdata);
+
+    if (level == 9)
+        wbufSize = LZO1X_999_MEM_COMPRESS;
+    else
+        wbufSize = LZO1X_1_MEM_COMPRESS;
+
+    workbuf = (lzo_byte *)malloc(wbufSize);
+    if (!workbuf)
+        return 0;
+
+    compressedSize = maxEncSize;
+    if (level == 9)
+        ret = lzo1x_999_compress(decBuf, decSize, encBuf, &compressedSize, workbuf);
+    else
+        ret = lzo1x_1_compress(decBuf, decSize, encBuf, &compressedSize, workbuf);
+    free(workbuf);
+    if (ret != LZO_E_OK)
+        return 0;
+
+    if (progressfun)
+        progressfun(100, userdata);
+
+    return compressedSize;
+}
+
+static unsigned int LZO_Decode_wrapper(const unsigned char *encBuf,
+    unsigned int encSize, unsigned char *decBuf, unsigned int decSize)
+{
+    lzo_uint decompressedSize;
+
+    decompressedSize = decSize;
+    if (lzo1x_decompress_safe(encBuf, encSize, decBuf, &decompressedSize, NULL) != LZO_E_OK)
+        return 0;
+
+    return decompressedSize;
+}
+
+static void InitCodecLZO(codec_t *c)
+{
+    lzo_init();
+    c->MaxEncodedSize = LZO_MaxEncodedSize_wrapper;
+    c->Encode = LZO_Encode_wrapper;
+    c->Decode = LZO_Decode_wrapper;
+}
+#endif
+
 
 /*-- (end of dynamic codec class) -------------------------------------------*/
 
@@ -330,6 +396,9 @@ void ShowUsage(char *prgName)
 #endif
 #ifdef USE_BZ2
     fprintf(stderr, " -bz2    Use bzip2 compression.\n");
+#endif
+#ifdef USE_LZO
+    fprintf(stderr, " -lzo    Use lzo compression.\n");
 #endif
     fprintf(stderr, " -memcpy Use memcpy \"compression\" (raw 1:1 copy).\n");
     fprintf(stderr, "\nDescription:\n");
@@ -399,6 +468,10 @@ int main(int argc, char **argv)
 #ifdef USE_BZ2
         else if (strcmp("-bz2", argv[arg]) == 0)
             InitCodecBZ2(&c);
+#endif
+#ifdef USE_LZO
+        else if (strcmp("-lzo", argv[arg]) == 0)
+            InitCodecLZO(&c);
 #endif
         else if (strcmp("-memcpy", argv[arg]) == 0)
             InitCodecMEMCPY(&c);

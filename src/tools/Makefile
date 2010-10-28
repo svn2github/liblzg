@@ -36,6 +36,7 @@ RM = rm -f
 # Benchmark configuration
 USE_ZLIB = NO
 USE_BZ2 = NO
+USE_LZO = NO
 
 BM_CFLAGS = $(CFLAGS)
 BM_LIBS = $(LIBS)
@@ -46,6 +47,10 @@ endif
 ifeq ($(USE_BZ2),YES)
 BM_CFLAGS += -DUSE_BZ2
 BM_LIBS += -lbz2
+endif
+ifeq ($(USE_LZO),YES)
+BM_CFLAGS += -DUSE_LZO
+BM_LIBS += -llzo2
 endif
 
 # Files
