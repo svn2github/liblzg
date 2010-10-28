@@ -36,6 +36,6 @@ or not.
 Version history
 ---------------
 
-v1.0 - ????.??.??
+v1.0 - 2010.10.28
 - First release
 
