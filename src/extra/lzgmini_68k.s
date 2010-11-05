@@ -25,6 +25,16 @@
 ;    distribution.
 ;-------------------------------------------------------------------------------
 
+;-------------------------------------------------------------------------------
+; Description
+; -----------
+; This is an assembly language implemention of the LZG decoder for the Motorola
+; 680x0 line of processors. It is written in Motorola syntax, and compiles with
+; vasm (http://sun.hasenbraten.de/vasm/) for instance, and should be easy to
+; modify for any other 68k assembler. The resulting code is about 0.5 KB, and
+; requires no extra memory (except for less than 100 bytes of stack space).
+;-------------------------------------------------------------------------------
+
 ;-- PRIVATE --------------------------------------------------------------------
 
 ;-------------------------------------------------------------------------------
@@ -34,6 +44,15 @@
 LZG_HEADER_SIZE:	equ	15
 LZG_METHOD_COPY:	equ	0
 LZG_METHOD_LZG1:	equ	1
+
+
+;-------------------------------------------------------------------------------
+; LUT for decoding the copy length parameter (-1)
+;-------------------------------------------------------------------------------
+
+_LZG_LENGTH_DECODE_LUT:
+	dc.b	1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
+	dc.b	17,18,19,20,21,22,23,24,25,26,27,28,34,47,71,127
 
 
 ;-------------------------------------------------------------------------------
@@ -59,32 +78,23 @@ _LZG_GetUINT32:
 ; a0 = data
 ; d0 = size
 ; d1 = result
+; Clobbers: d2, d3
 ;-------------------------------------------------------------------------------
  
 _LZG_CalcChecksum:
-	movem.l	d0/d2/d3/a0,-(sp)
+	movem.l	d0/a0,-(sp)
 	moveq	#1,d1			; a = 1
 	moveq	#0,d2			; b = 0
 	moveq	#0,d3
-	bra.s	cs2
-cs1:	move.b	(a0)+,d3
+	bra.s	.cs2
+.cs1:	move.b	(a0)+,d3
 	add.w	d3,d1			; a += ;data++
 	add.w	d1,d2			; b += a
-cs2:	dbf	d0,cs1
+.cs2:	dbf	d0,.cs1
 	swap	d2
 	or.l	d2,d1			; return (b << 16) | a
-	movem.l	(sp)+,d0/d2/d3/a0
+	movem.l	(sp)+,d0/a0
 	rts
-
-
-;-------------------------------------------------------------------------------
-; LUT for decoding the copy length parameter
-;-------------------------------------------------------------------------------
-
-_LZG_LENGTH_DECODE_LUT:
-	dc.b	2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17
-	dc.b	18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
-
 
 
 ;-- PUBLIC ---------------------------------------------------------------------
@@ -108,28 +118,6 @@ decodedSize:	equ	12
 checksum:	equ	16
 _FRAME_SIZE:	equ	20
 
-	; Macro for checking against in data array bounds (clobbers a4)
-	macro	BOUNDS_CHECK_IN
-	ifeq	\1-1
-	cmp.l	a2,a0
-	else
-	lea.l	\1(a0),a4
-	cmp.l	a2,a4
-	endif
-	bcc	_fail
-	endm
-
-	; Macro for checking against out data array bounds (clobbers a4)
-	macro	BOUNDS_CHECK_OUT
-	ifeq	\1-1
-	cmp.l	a3,a1
-	else
-	lea.l	\1(a1),a4
-	cmp.l	a3,a4
-	endif
-	bcc	_fail
-	endm
-
 	movem.l	d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5,-(sp)
 	lea.l	-_FRAME_SIZE(sp),sp
 
@@ -139,64 +127,63 @@ _FRAME_SIZE:	equ	20
 
 	; Check magic ID
 	cmp.l	#LZG_HEADER_SIZE,d0
-	bcs	_fail
+	bcs	.fail
 	cmp.b	#'L',(a0)
-	bne	_fail
+	bne	.fail
 	cmp.b	#'Z',1(a0)
-	bne	_fail
+	bne	.fail
 	cmp.b	#'G',2(a0)
-	bne	_fail
+	bne	.fail
 
 	; Get header data
 	moveq	#3,d0
-	bsr	_LZG_GetUINT32
+	bsr.s	_LZG_GetUINT32
 	move.l	d1,decodedSize(sp)
 	moveq	#7,d0
-	bsr	_LZG_GetUINT32
+	bsr.s	_LZG_GetUINT32
 	move.l	d1,encodedSize(sp)
 	moveq	#11,d0
-	bsr	_LZG_GetUINT32
+	bsr.s	_LZG_GetUINT32
 	move.l	d1,checksum(sp)
 
 	; Check sizes
-	move.l	decodedSize(sp),d2
-	cmp.l	outSize(sp),d2
-	bhi	_fail
-	move.l	encodedSize(sp),d2
-	add.l	#LZG_HEADER_SIZE,d2
-	cmp.l	inSize(sp),d2
-	bhi	_fail
+	move.l	decodedSize(sp),d7
+	cmp.l	outSize(sp),d7
+	bhi	.fail
+	move.l	encodedSize(sp),d7
+	add.l	#LZG_HEADER_SIZE,d7
+	cmp.l	inSize(sp),d7
+	bhi.s	.fail
 
 	; Initialize the byte streams
-	move.l	a0,d2
-	add.l	inSize(sp),d2
-	move.l	d2,a2				; a2 = inEnd = in + inSize
-	move.l	a1,d2
-	add.l	outSize(sp),d2
-	move.l	d2,a3				; a3 = outEnd = out + outSize
+	move.l	a0,a2
+	add.l	inSize(sp),a2			; a2 = inEnd = in + inSize
+	move.l	a1,a3
+	add.l	outSize(sp),a3			; a3 = outEnd = out + outSize
 	lea.l	LZG_HEADER_SIZE(a0),a0		; a0 = src
 						; a1 = dst
-	lea.l	_LZG_LENGTH_DECODE_LUT,a5	; a5 = _LZG_LENGTH_DECODE_LUT
 
 	; Nothing to do...?
 	cmp.l	a0,a2
-	beq	_done
+	beq.s	.done
 
 	; Check checksum
 	move.l	encodedSize(sp),d0
 	bsr	_LZG_CalcChecksum
 	cmp.l	checksum(sp),d1
-	bne	_fail
+	bne.s	.fail
 
 	; Check which method to use
-	move.b	-1(a0),d2
-	cmp.b	#LZG_METHOD_COPY,d2
-	beq	_plainCopy
-	cmp.b	#LZG_METHOD_LZG1,d2
-	bne	_fail
+	move.b	-1(a0),d7
+	cmp.b	#LZG_METHOD_COPY,d7
+	beq	.plaincopy
+	cmp.b	#LZG_METHOD_LZG1,d7
+	bne.s	.fail
 
 	; Get the marker symbols
-	BOUNDS_CHECK_IN 4
+	lea.l	4(a0),a4
+	cmp.l	a2,a4
+	bcc.s	.fail
 	move.b	(a0)+,d1			; d1 = marker1
 	move.b	(a0)+,d2			; d2 = marker1
 	move.b	(a0)+,d3			; d3 = marker1
@@ -204,112 +191,131 @@ _FRAME_SIZE:	equ	20
 
 	; Nothing to do...?
 	cmp.l	a0,a2
-	beq	_done
+	beq.s	.done
 
-dc1:	; Main decompression loop
-	BOUNDS_CHECK_IN 1
-	move.b	(a0)+,d0			; d0 = symbol
+	lea.l	_LZG_LENGTH_DECODE_LUT,a5	; a5 = _LZG_LENGTH_DECODE_LUT
 
-	cmp.b	d1,d0				; marker1?
-	beq.s	dc3
-	cmp.b	d2,d0				; marker2?
-	beq.s	dc4
-	cmp.b	d3,d0				; marker3?
-	beq.s	dc5
-	cmp.b	d4,d0				; marker4?
-	beq.s	dc6
-
-dc2:	BOUNDS_CHECK_OUT 1
-	move.b	d0,(a1)+
+	; Main decompression loop
 	cmp.l	a2,a0
-	bcs.s	dc1
-	bra	_done
+.mainloop:
+	bcc.s	.fail				; Note: cmp.l a2,a0 must be performed prior to this!
+	move.b	(a0)+,d7			; d7 = symbol
 
-dc3:	; marker1 - "Distant copy"
-	BOUNDS_CHECK_IN 1
+	cmp.b	d1,d7				; marker1?
+	beq.s	.marker1
+	cmp.b	d2,d7				; marker2?
+	beq.s	.marker2
+	cmp.b	d3,d7				; marker3?
+	beq.s	.marker3
+	cmp.b	d4,d7				; marker4?
+	beq.s	.marker4
+
+.literal:
+	cmp.l	a3,a1
+	bcc.s	.fail
+	move.b	d7,(a1)+
+	cmp.l	a2,a0
+	bcs.s	.mainloop
+
+	; We're done
+.done:
+	cmp.l	a3,a1
+	bne.s	.fail
+	move.l	decodedSize(sp),d2
+	bra.s	.exit
+
+	; This is where we end up if something went wrong...
+.fail:
+	moveq	#0,d2
+.exit:	lea.l	_FRAME_SIZE(sp),sp
+	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5
+	rts
+
+	; marker4 - "Near copy (incl. RLE)"
+.marker4:
+	cmp.l	a2,a0
+	bcc.s	.fail
 	moveq	#0,d5
 	move.b	(a0)+,d5
-	beq	dc2				; Single occurance of the marker symbol (rare)
-	BOUNDS_CHECK_IN 2
+	beq.s	.literal			; Single occurance of the marker symbol (rare)
+	move.w	d5,d6
+	and.b	#$1f,d6
+	move.b	(a5,d6.w),d6			; length-1 = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
+	lsr.b	#5,d5
+	addq.w	#1,d5				; offset = (b >> 5) + 1
+	bra.s	.copy
+
+	; marker3 - "Short copy"
+.marker3:
+	cmp.l	a2,a0
+	bcc.s	.fail
+	moveq	#0,d5
+	move.b	(a0)+,d5
+	beq.s	.literal			; Single occurance of the marker symbol (rare)
+	move.w	d5,d6
+	asr.b	#6,d6
+	addq.w	#2,d6				; length-1 = (b >> 6) + 2
+	and.b	#$3f,d5
+	addq.w	#8,d5				; offset = (b & 0x3f) + 8
+	bra.s	.copy
+
+	; marker2 - "Medium copy"
+.marker2:
+	cmp.l	a2,a0
+	bcc.s	.fail
+	moveq	#0,d5
+	move.b	(a0)+,d5
+	beq.s	.literal			; Single occurance of the marker symbol (rare)
+	cmp.l	a2,a0
+	bcc.s	.fail
 	move.l	d5,d6
 	and.b	#$1f,d6
-	move.b	(a5,d6.w),d6			; length = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
+	move.b	(a5,d6.w),d6			; length-1 = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
+	lsl.w	#3,d5
+	move.b	(a0)+,d5
+	addq.w	#8,d5				; offset = ((b & 0xe0) << 3) | b2
+	bra.s	.copy
+
+	; marker1 - "Distant copy"
+.marker1:
+	cmp.l	a2,a0
+	bcc.s	.fail
+	moveq	#0,d5
+	move.b	(a0)+,d5
+	beq.s	.literal			; Single occurance of the marker symbol (rare)
+	lea.l	2(a0),a4
+	cmp.l	a2,a4
+	bcc.s	.fail
+	move.l	d5,d6
+	and.b	#$1f,d6
+	move.b	(a5,d6.w),d6			; length-1 = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
 	lsr.w	#5,d5
 	swap	d5
 	move.b	(a0)+,d5
 	lsl.w	#8,d5
 	move.b	(a0)+,d5
 	add.w	#2056,d5			; offset = ((b & 0xe0) << 11) | (b2 << 8) | (*src++)
-	bra.s	dc7
 
-dc4:	; marker2 - "Medium copy"
-	BOUNDS_CHECK_IN 1
-	moveq	#0,d5
-	move.b	(a0)+,d5
-	beq	dc2				; Single occurance of the marker symbol (rare)
-	BOUNDS_CHECK_IN 1
-	move.l	d5,d6
-	and.b	#$1f,d6
-	move.b	(a5,d6.w),d6			; length = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
-	lsl.w	#3,d5
-	move.b	(a0)+,d5
-	addq.w	#8,d5				; offset = ((b & 0xe0) << 3) | b2
-	bra.s	dc7
-
-dc5:	; marker3 - "Short copy"
-	BOUNDS_CHECK_IN 1
-	moveq	#0,d5
-	move.b	(a0)+,d5
-	beq	dc2				; Single occurance of the marker symbol (rare)
-	move.w	d5,d6
-	asr.b	#6,d6
-	addq.w	#3,d6				; length = (b >> 6) + 3
-	and.b	#$3f,d5
-	addq.w	#8,d5				; offset = (b & 0x3f) + 8
-	bra.s	dc7
-
-dc6:	; marker4 - "Near copy (incl. RLE)"
-	BOUNDS_CHECK_IN 1
-	moveq	#0,d5
-	move.b	(a0)+,d5
-	beq	dc2				; Single occurance of the marker symbol (rare)
-	move.w	d5,d6
-	and.b	#$1f,d6
-	move.b	(a5,d6.w),d6			; length = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
-	lsr.b	#5,d5
-	addq.w	#1,d5				; offset = (b >> 5) + 1
-
-dc7:	; Copy corresponding data from history window
+	; Copy corresponding data from history window
+	; d5 = offset
+	; d6 = length-1
+.copy:
 	move.l	a1,a4
 	sub.l	d5,a4
 	; FIXME: if (!((copy >= out) && ((dst + length) <= outEnd))) return 0;
-	subq.l	#1,d6
-dc8:	move.b	(a4)+,(a1)+
-	dbf	d6,d8
+.loop1:	move.b	(a4)+,(a1)+
+	dbf	d6,.loop1
 
 	cmp.l	a2,a0
-	bcs	dc1
-	bra.s	_done
+	bcs	.mainloop
 
-_plainCopy:
+	; For non-compressible data, we copy the data as it is (1:1)
+.plaincopy:
 	move.l	encodedSize(sp),d6
 	cmp.l	decodedSize(sp),d6
-	bne	_fail
+	bne	.fail
 	subq.l	#1,d6
-dc9:	move.b	(a0)+,(a1)+
-	dbf	d6,dc9
-
-_done:	; We're done
-	cmp.l	a3,a1
-	bne	_fail
-	move.l	decodedSize(sp),d2
-	lea.l	_FRAME_SIZE(sp),sp
-	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5
-	rts
-	
-_fail:	; This is where we end up if something went wrong...
-	moveq	#0,d2
-	lea.l	_FRAME_SIZE(sp),sp
-	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5
-	rts
+.loop2:	move.b	(a0)+,(a1)+
+	dbf	d6,.loop2
+	bra	.done
 
