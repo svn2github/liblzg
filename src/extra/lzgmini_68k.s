@@ -105,14 +105,10 @@ LZG_Decode:
 	/* Stack frame */
 	.equ	inSize,0
 	.equ	outSize,4
-	.equ	m1,8
-	.equ	m2,9
-	.equ	m3,10
-	.equ	m4,11
-	.equ	encodedSize,12
-	.equ	decodedSize,16
-	.equ	checksum,20
-	.equ	STACK_FRAME_SIZE,24
+	.equ	encodedSize,8
+	.equ	decodedSize,12
+	.equ	checksum,16
+	.equ	STACK_FRAME_SIZE,20
 
 	/* Macro for checking against in data array bounds (clobbers a4) */
 	.macro	BOUNDS_CHECK_IN size
@@ -136,7 +132,7 @@ LZG_Decode:
 	bcc	_fail
 	.endm
 
-	movem.l	%d0/%d1/%d3/%d4/%d5/%d6/%d7/%a0/%a1/%a2/%a3/%a4/%a5/%a6, -(%sp)
+	movem.l	%d0/%d1/%d3/%d4/%d5/%d6/%d7/%a0/%a1/%a2/%a3/%a4/%a5, -(%sp)
 	lea.l	-STACK_FRAME_SIZE(%sp), %sp
 
 	/* Remember caller arguments */
@@ -145,7 +141,7 @@ LZG_Decode:
 
 	/* Check magic ID */
 	cmp.l	#LZG_HEADER_SIZE, %d0
-	bmi	_fail
+	bcs	_fail
 	cmp.b	#'L, (%a0)
 	bne	_fail
 	cmp.b	#'Z, 1(%a0)
@@ -184,6 +180,10 @@ LZG_Decode:
 						/* a1 = dst */
 	lea.l	_LZG_LENGTH_DECODE_LUT, %a5	/* a5 = _LZG_LENGTH_DECODE_LUT */
 
+	/* Nothing to do...? */
+	cmp.l	%a0, %a2
+	beq	_done
+
 	/* Check checksum */
 	move.l	encodedSize(%sp), %d0
 	bsr	_LZG_CalcChecksum
@@ -208,25 +208,24 @@ LZG_Decode:
 	cmp.l	%a0, %a2
 	beq	_done
 
-	moveq	#0, %d0
 1:	/* Main decompression loop */
 	BOUNDS_CHECK_IN 1
 	move.b	(%a0)+, %d0			/* d0 = symbol */
 
 	cmp.b	%d1, %d0			/* marker1? */
-	beq	3f
+	beq.s	3f
 	cmp.b	%d2, %d0			/* marker2? */
-	beq	4f
+	beq.s	4f
 	cmp.b	%d3, %d0			/* marker3? */
-	beq	5f
+	beq.s	5f
 	cmp.b	%d4, %d0			/* marker4? */
-	beq	6f
+	beq.s	6f
 
 2:	BOUNDS_CHECK_OUT 1
 	move.b	%d0, (%a1)+
 	cmp.l	%a2, %a0
-	bcs	1b
-	bra	_done
+	bcs.s	1b
+	bra.s	_done
 
 3:	/* marker1 - "Distant copy" */
 	BOUNDS_CHECK_IN 1
@@ -243,7 +242,7 @@ LZG_Decode:
 	lsl.w	#8, %d5
 	move.b	(%a0)+, %d5
 	add.w	#2056, %d5			/* offset = ((b & 0xe0) << 11) | (b2 << 8) | (*src++) */
-	bra	7f
+	bra.s	7f
 
 4:	/* marker2 - "Medium copy" */
 	BOUNDS_CHECK_IN 1
@@ -257,7 +256,7 @@ LZG_Decode:
 	lsl.w	#3, %d5
 	move.b	(%a0)+, %d5
 	addq.w	#8, %d5				/* offset = ((b & 0xe0) << 3) | b2 */
-	bra	7f
+	bra.s	7f
 
 5:	/* marker3 - "Short copy" */
 	BOUNDS_CHECK_IN 1
@@ -269,7 +268,7 @@ LZG_Decode:
 	addq.w	#3, %d6				/* length = (b >> 6) + 3 */
 	and.b	#0x3f, %d5
 	addq.w	#8, %d5				/* offset = (b & 0x3f) + 8 */
-	bra	7f
+	bra.s	7f
 
 6:	/* marker4 - "Near copy (incl. RLE)" */
 	BOUNDS_CHECK_IN 1
@@ -292,18 +291,28 @@ LZG_Decode:
 
 	cmp.l	%a2, %a0
 	bcs	1b
+	bra.s	_done
+
+_plainCopy:
+	move.l	encodedSize(%sp), %d6
+	cmp.l	decodedSize(%sp), %d6
+	bne	_fail
+	subq.l	#1, %d6
+1:	move.b	(%a0)+, (%a1)+
+	dbf	%d6, 1b
 
 _done:	/* We're done */
 	cmp.l	%a3, %a1
 	bne	_fail
 	move.l	decodedSize(%sp), %d2
 	lea.l	STACK_FRAME_SIZE(%sp), %sp
-	movem.l	(%sp)+, %d0/%d1/%d3/%d4/%d5/%d6/%d7/%a0/%a1/%a2/%a3/%a4/%a5/%a6
+	movem.l	(%sp)+, %d0/%d1/%d3/%d4/%d5/%d6/%d7/%a0/%a1/%a2/%a3/%a4/%a5
 	rts
 	
 _fail:	/* This is where we end up if something went wrong... */
 	moveq	#0, %d2
 	lea.l	STACK_FRAME_SIZE(%sp), %sp
-	movem.l	(%sp)+, %d0/%d1/%d3/%d4/%d5/%d6/%d7/%a0/%a1/%a2/%a3/%a4/%a5/%a6
+	movem.l	(%sp)+, %d0/%d1/%d3/%d4/%d5/%d6/%d7/%a0/%a1/%a2/%a3/%a4/%a5
 	rts
+
 
