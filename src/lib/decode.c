@@ -28,6 +28,17 @@
 #include "internal.h"
 
 
+/*-- CONFIGURATION -----------------------------------------------------------*/
+
+/*
+* When LZG_UNSAFE is defined, no checks against data corruption will be
+* performed. This will speed up the decoder by 10-20%, but may result in invalid
+* memory accesses in case of corrupted data.
+* DO NOT enable this unless you can trust your data 100%!
+*/
+/* #define LZG_UNSAFE */
+
+
 /*-- PRIVATE -----------------------------------------------------------------*/
 
 /* LUT for decoding the copy length parameter */
@@ -45,7 +56,11 @@ static const unsigned char _LZG_LENGTH_DECODE_LUT[32] = {
 
 /* This macro is used for out-of-bounds checks, to prevent invalid memory
    accesses. */
-#define CHECK_BOUNDS(expr) if (UNLIKELY(!(expr))) return 0
+#ifndef LZG_UNSAFE
+# define CHECK_BOUNDS(expr) if (UNLIKELY(!(expr))) return 0
+#else
+# define CHECK_BOUNDS(expr)
+#endif
 
 
 /*-- PUBLIC ------------------------------------------------------------------*/
@@ -90,9 +105,11 @@ unsigned int LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
         return 0;
 
     /* Get & check checksum */
+#ifndef LZG_UNSAFE
     checksum = _LZG_GetUINT32(in, 11);
     if (_LZG_CalcChecksum(&in[LZG_HEADER_SIZE], encodedSize) != checksum)
         return 0;
+#endif
 
     /* Check which method is used */
     method = in[15];
