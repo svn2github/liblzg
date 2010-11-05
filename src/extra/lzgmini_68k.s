@@ -106,7 +106,7 @@ outSize:	equ	4
 encodedSize:	equ	8
 decodedSize:	equ	12
 checksum:	equ	16
-STACK_FRAME_SIZE: equ	20
+_FRAME_SIZE:	equ	20
 
 	; Macro for checking against in data array bounds (clobbers a4)
 	macro	BOUNDS_CHECK_IN
@@ -131,7 +131,7 @@ STACK_FRAME_SIZE: equ	20
 	endm
 
 	movem.l	d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5,-(sp)
-	lea.l	-STACK_FRAME_SIZE(sp),sp
+	lea.l	-_FRAME_SIZE(sp),sp
 
 	; Remember caller arguments
 	move.l	d0,inSize(sp)
@@ -303,13 +303,13 @@ _done:	; We're done
 	cmp.l	a3,a1
 	bne	_fail
 	move.l	decodedSize(sp),d2
-	lea.l	STACK_FRAME_SIZE(sp),sp
+	lea.l	_FRAME_SIZE(sp),sp
 	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5
 	rts
 	
 _fail:	; This is where we end up if something went wrong...
 	moveq	#0,d2
-	lea.l	STACK_FRAME_SIZE(sp),sp
+	lea.l	_FRAME_SIZE(sp),sp
 	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5
 	rts
 
