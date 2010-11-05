@@ -8,6 +8,12 @@ LZG decompression routine are availble.
 FILES
 -----
 
-lzgmini.c - A minimal (easy to read / not optimized for speed) implementation
-            of the decoder in C.
+lzgmini.c
+    A minimal (easy to read / not optimized for speed) implementation of the
+    decoder in C. This can serve as a reference implementation for translating
+    the LZG decoder to other programming languages.
+
+lzgmini_68k.s
+    An assembler implementation of the LZG decoder for the MC68000 family of
+    16/32-bit processors.
 
