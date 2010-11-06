@@ -41,7 +41,7 @@
 ; Constants
 ;-------------------------------------------------------------------------------
  
-LZG_HEADER_SIZE:	equ	15
+LZG_HEADER_SIZE:	equ	16
 LZG_METHOD_COPY:	equ	0
 LZG_METHOD_LZG1:	equ	1
 
@@ -63,13 +63,13 @@ _LZG_LENGTH_DECODE_LUT:
 ;-------------------------------------------------------------------------------
 
 _LZG_GetUINT32:
-	move.b	(a0,d0.l),d1
+	move.b	(a0,d0.w),d1
 	asl.w	#8,d1
-	move.b	1(a0,d0.l),d1
+	move.b	1(a0,d0.w),d1
 	swap	d1
-	move.b	2(a0,d0.l),d1
+	move.b	2(a0,d0.w),d1
 	asl.w	#8,d1
-	move.b	3(a0,d0.l),d1
+	move.b	3(a0,d0.w),d1
 	rts
 
 
@@ -83,16 +83,16 @@ _LZG_GetUINT32:
  
 _LZG_CalcChecksum:
 	movem.l	d0/a0,-(sp)
-	moveq	#1,d1			; a = 1
-	moveq	#0,d2			; b = 0
+	moveq	#1,d2			; a = 1
+	moveq	#0,d1			; b = 0
 	moveq	#0,d3
-	bra.s	.cs2
+	subq.l	#1,d0
 .cs1:	move.b	(a0)+,d3
-	add.w	d3,d1			; a += ;data++
-	add.w	d1,d2			; b += a
-.cs2:	dbf	d0,.cs1
-	swap	d2
-	or.l	d2,d1			; return (b << 16) | a
+	add.w	d3,d2			; a += *data++
+	add.w	d2,d1			; b += a
+	dbf	d0,.cs1
+	swap	d1
+	move.w	d2,d1			; return (b << 16) | a
 	movem.l	(sp)+,d0/a0
 	rts
 
@@ -149,7 +149,7 @@ _FRAME_SIZE:	equ	20
 	; Check sizes
 	move.l	decodedSize(sp),d7
 	cmp.l	outSize(sp),d7
-	bhi	.fail
+	bhi.s	.fail
 	move.l	encodedSize(sp),d7
 	add.l	#LZG_HEADER_SIZE,d7
 	cmp.l	inSize(sp),d7
@@ -159,7 +159,7 @@ _FRAME_SIZE:	equ	20
 	move.l	a0,a2
 	add.l	inSize(sp),a2			; a2 = inEnd = in + inSize
 	move.l	a1,a3
-	add.l	outSize(sp),a3			; a3 = outEnd = out + outSize
+	add.l	decodedSize(sp),a3		; a3 = outEnd = out + decodedSize
 	lea.l	LZG_HEADER_SIZE(a0),a0		; a0 = src
 						; a1 = dst
 
@@ -188,10 +188,6 @@ _FRAME_SIZE:	equ	20
 	move.b	(a0)+,d2			; d2 = marker1
 	move.b	(a0)+,d3			; d3 = marker1
 	move.b	(a0)+,d4			; d4 = marker1
-
-	; Nothing to do...?
-	cmp.l	a0,a2
-	beq.s	.done
 
 	lea.l	_LZG_LENGTH_DECODE_LUT,a5	; a5 = _LZG_LENGTH_DECODE_LUT
 
@@ -238,7 +234,7 @@ _FRAME_SIZE:	equ	20
 	moveq	#0,d5
 	move.b	(a0)+,d5
 	beq.s	.literal			; Single occurance of the marker symbol (rare)
-	move.w	d5,d6
+	move.l	d5,d6
 	and.b	#$1f,d6
 	move.b	(a5,d6.w),d6			; length-1 = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
 	lsr.b	#5,d5
@@ -252,8 +248,8 @@ _FRAME_SIZE:	equ	20
 	moveq	#0,d5
 	move.b	(a0)+,d5
 	beq.s	.literal			; Single occurance of the marker symbol (rare)
-	move.w	d5,d6
-	asr.b	#6,d6
+	move.l	d5,d6
+	lsr.b	#6,d6
 	addq.w	#2,d6				; length-1 = (b >> 6) + 2
 	and.b	#$3f,d5
 	addq.w	#8,d5				; offset = (b & 0x3f) + 8
@@ -294,7 +290,7 @@ _FRAME_SIZE:	equ	20
 	move.b	(a0)+,d5
 	lsl.w	#8,d5
 	move.b	(a0)+,d5
-	add.w	#2056,d5			; offset = ((b & 0xe0) << 11) | (b2 << 8) | (*src++)
+	add.l	#2056,d5			; offset = ((b & 0xe0) << 11) | (b2 << 8) | (*src++)
 
 	; Copy corresponding data from history window
 	; d5 = offset
@@ -308,6 +304,7 @@ _FRAME_SIZE:	equ	20
 
 	cmp.l	a2,a0
 	bcs	.mainloop
+	bra	.done
 
 	; For non-compressible data, we copy the data as it is (1:1)
 .plaincopy:

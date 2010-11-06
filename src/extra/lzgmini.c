@@ -30,7 +30,7 @@
 /*-- PRIVATE -----------------------------------------------------------------*/
 
 /* Internal definitions */
-#define LZG_HEADER_SIZE 15
+#define LZG_HEADER_SIZE 16
 #define LZG_METHOD_COPY 0
 #define LZG_METHOD_LZG1 1
 
