@@ -180,7 +180,7 @@ _FRAME_SIZE:	equ	24
 	move.b	(a0)+,d3			; d3 = marker1
 	move.b	(a0)+,d4			; d4 = marker1
 
-	lea.l	_LZG_LENGTH_DECODE_LUT,a5	; a5 = _LZG_LENGTH_DECODE_LUT
+	lea.l	_LZG_LENGTH_DECODE_LUT(pc),a5	; a5 = _LZG_LENGTH_DECODE_LUT
 
 	; Main decompression loop
 	cmp.l	a2,a0
@@ -319,12 +319,12 @@ _FRAME_SIZE:	equ	24
 ; LZG_DecodedSize - Detrmine the uncompressed size for compressed memory block
 ; a0 = in
 ; d0 = insize
-; d2 = result (number of decompressed bytes, or zero upon failure)
+; d1 = result (number of decompressed bytes, or zero upon failure)
 ;-------------------------------------------------------------------------------
 
 	xdef	LZG_DecodedSize
 LZG_DecodedSize:
-	movem.l	d0/d1,-(sp)
+	move.l	d0,-(sp)
 
 	; Check magic ID
 	cmp.l	#7,d0
@@ -339,11 +339,10 @@ LZG_DecodedSize:
 	; Get output buffer size
 	moveq	#3,d0
 	bsr	_LZG_GetUINT32
-	move.l	d1,d2
-	movem.l	(sp)+,d0/d1
+	move.l	(sp)+,d0
 	rts
 
 .fail:	moveq	#0,d1
-	movem.l	(sp)+,d0/d1
+	move.l	(sp)+,d0
 	rts
 
