@@ -28,6 +28,8 @@ mkdir $tmpdir/src/lib
 cp src/lib/*.c src/lib/*.h src/lib/Makefile* $tmpdir/src/lib/
 mkdir $tmpdir/src/tools
 cp src/tools/*.c src/tools/Makefile* $tmpdir/src/tools/
+mkdir $tmpdir/src/extra
+cp src/extra/README.txt src/extra/lzgmini.c src/extra/lzgmini_m68k.s $tmpdir/src/extra/
 
 mkdir $tmpdir/doc
 cp doc/*.svg $tmpdir/doc/
