@@ -35,6 +35,8 @@
 ; requires no extra memory (except for less than 100 bytes of stack space).
 ;-------------------------------------------------------------------------------
 
+	section	code,code
+
 ;-- PRIVATE --------------------------------------------------------------------
 
 ;-------------------------------------------------------------------------------
@@ -53,12 +55,12 @@ LZG_METHOD_LZG1:	equ	1
 _LZG_LENGTH_DECODE_LUT:
 	dc.b	1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16
 	dc.b	17,18,19,20,21,22,23,24,25,26,27,28,34,47,71,127
-
+	even
 
 ;-------------------------------------------------------------------------------
 ; _LZG_GetUINT32 - alignment independent reader for 32-bit integers
 ; a0 = in
-; d0 = offs
+; d0 = offset
 ; d1 = result
 ;-------------------------------------------------------------------------------
 
@@ -73,30 +75,6 @@ _LZG_GetUINT32:
 	rts
 
 
-;-------------------------------------------------------------------------------
-; _LZG_CalcChecksum - Calculate the checksum
-; a0 = data
-; d0 = size
-; d1 = result
-; Clobbers: d2, d3
-;-------------------------------------------------------------------------------
- 
-_LZG_CalcChecksum:
-	movem.l	d0/a0,-(sp)
-	moveq	#1,d2			; a = 1
-	moveq	#0,d1			; b = 0
-	moveq	#0,d3
-	subq.l	#1,d0
-.cs1:	move.b	(a0)+,d3
-	add.w	d3,d2			; a += *data++
-	add.w	d2,d1			; b += a
-	dbf	d0,.cs1
-	swap	d1
-	move.w	d2,d1			; return (b << 16) | a
-	movem.l	(sp)+,d0/a0
-	rts
-
-
 ;-- PUBLIC ---------------------------------------------------------------------
 
 ;-------------------------------------------------------------------------------
@@ -105,9 +83,10 @@ _LZG_CalcChecksum:
 ; d0 = insize
 ; a1 = out
 ; d1 = outsize
-; d2 = result (number of decompressed bytes,or zero upon failure)
+; d2 = result (number of decompressed bytes, or zero upon failure)
 ;-------------------------------------------------------------------------------
 
+	xdef	LZG_Decode
 LZG_Decode:
 
 ; Stack frame
@@ -116,14 +95,16 @@ outSize:	equ	4
 encodedSize:	equ	8
 decodedSize:	equ	12
 checksum:	equ	16
-_FRAME_SIZE:	equ	20
+out:		equ	20
+_FRAME_SIZE:	equ	24
 
-	movem.l	d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5,-(sp)
+	movem.l	d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5/a6,-(sp)
 	lea.l	-_FRAME_SIZE(sp),sp
 
 	; Remember caller arguments
 	move.l	d0,inSize(sp)
 	move.l	d1,outSize(sp)
+	move.l	a1,out(sp)
 
 	; Check magic ID
 	cmp.l	#LZG_HEADER_SIZE,d0
@@ -149,11 +130,11 @@ _FRAME_SIZE:	equ	20
 	; Check sizes
 	move.l	decodedSize(sp),d7
 	cmp.l	outSize(sp),d7
-	bhi.s	.fail
+	bhi	.fail
 	move.l	encodedSize(sp),d7
 	add.l	#LZG_HEADER_SIZE,d7
 	cmp.l	inSize(sp),d7
-	bhi.s	.fail
+	bhi	.fail
 
 	; Initialize the byte streams
 	move.l	a0,a2
@@ -167,9 +148,19 @@ _FRAME_SIZE:	equ	20
 	cmp.l	a0,a2
 	beq.s	.done
 
-	; Check checksum
+	; Calculate and check checksum
+	move.l	a0,a4
 	move.l	encodedSize(sp),d0
-	bsr	_LZG_CalcChecksum
+	subq.l	#1,d0
+	moveq	#1,d2				; a = 1
+	moveq	#0,d1				; b = 0
+	moveq	#0,d3
+.cs1:	move.b	(a4)+,d3
+	add.w	d3,d2				; a += *data++
+	add.w	d2,d1				; b += a
+	dbf	d0,.cs1
+	swap	d1
+	move.w	d2,d1				; return (b << 16) | a
 	cmp.l	checksum(sp),d1
 	bne.s	.fail
 
@@ -181,7 +172,7 @@ _FRAME_SIZE:	equ	20
 	bne.s	.fail
 
 	; Get the marker symbols
-	lea.l	4(a0),a4
+	lea.l	3(a0),a4
 	cmp.l	a2,a4
 	bcc.s	.fail
 	move.b	(a0)+,d1			; d1 = marker1
@@ -224,7 +215,7 @@ _FRAME_SIZE:	equ	20
 .fail:
 	moveq	#0,d2
 .exit:	lea.l	_FRAME_SIZE(sp),sp
-	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5
+	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5/a6
 	rts
 
 	; marker4 - "Near copy (incl. RLE)"
@@ -279,7 +270,7 @@ _FRAME_SIZE:	equ	20
 	moveq	#0,d5
 	move.b	(a0)+,d5
 	beq.s	.literal			; Single occurance of the marker symbol (rare)
-	lea.l	2(a0),a4
+	lea.l	1(a0),a4
 	cmp.l	a2,a4
 	bcc.s	.fail
 	move.l	d5,d6
@@ -298,7 +289,13 @@ _FRAME_SIZE:	equ	20
 .copy:
 	move.l	a1,a4
 	sub.l	d5,a4
-	; FIXME: if (!((copy >= out) && ((dst + length) <= outEnd))) return 0;
+
+	cmp.l	out(sp),a4
+	bcs	.fail
+	lea.l	(a1,d6.l),a6
+	cmp.l	a3,a6
+	bcc	.fail
+
 .loop1:	move.b	(a4)+,(a1)+
 	dbf	d6,.loop1
 
@@ -315,4 +312,38 @@ _FRAME_SIZE:	equ	20
 .loop2:	move.b	(a0)+,(a1)+
 	dbf	d6,.loop2
 	bra	.done
+
+
+
+;-------------------------------------------------------------------------------
+; LZG_DecodedSize - Detrmine the uncompressed size for compressed memory block
+; a0 = in
+; d0 = insize
+; d2 = result (number of decompressed bytes, or zero upon failure)
+;-------------------------------------------------------------------------------
+
+	xdef	LZG_DecodedSize
+LZG_DecodedSize:
+	movem.l	d0/d1,-(sp)
+
+	; Check magic ID
+	cmp.l	#7,d0
+	bcs	.fail
+	cmp.b	#'L',(a0)
+	bne	.fail
+	cmp.b	#'Z',1(a0)
+	bne	.fail
+	cmp.b	#'G',2(a0)
+	bne	.fail
+
+	; Get output buffer size
+	moveq	#3,d0
+	bsr	_LZG_GetUINT32
+	move.l	d1,d2
+	movem.l	(sp)+,d0/d1
+	rts
+
+.fail:	moveq	#0,d1
+	movem.l	(sp)+,d0/d1
+	rts
 
