@@ -39,13 +39,23 @@
 ;
 ; The compiled routine is about 360 bytes, and on a stock Commodore 64 (1 MHz
 ; 6510), this routine decompresses about 25 KB/s.
+;
+; Tips
+;  - This routine can be tilored in several ways for more optimal operation.
+;    One idea is to use a small circular buffer for the encoded data, for
+;    instance for decompressing the data while loading it from disk.
+;  - With careful planning, you can overlap input and output buffers (put the
+;    encoded buffer at the end of the decoded buffer, plus a slight offset to
+;    accomodate for potential over runs).
+;  - On a C64, you can add an "sta $d020" instruction next to the "sta _symbol"
+;    instruction for that funky retro look...
 ;-------------------------------------------------------------------------------
 
 
 ;-------------------------------------------------------------------------------
 ; Memory addresses
 ; NOTE These are all located in the zero page. They were chosen according to
-; common practices for the Commodore 64 (unused and temporary memory locations).
+; good practices for the Commodore 64 (unused and temporary memory locations).
 ; On other machines, other memory locations may be more suitable.
 ;-------------------------------------------------------------------------------
 
