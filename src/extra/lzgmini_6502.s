@@ -29,18 +29,24 @@
 ; This is an assembly language implemention of the LZG decoder for the NMOS 6502
 ; processor (and variants). It was tested with the xa65 assembler
 ; (http://www.floodgap.com/retrotech/xa/).
+;
 ; This implementation is a bit crude, with the following limitations
 ;  - No "safe mode" (no checking for corrupted data, no checksum calculation).
 ;  - No data integrity checking.
 ;  - Does not support buffer sizes or offsets larger than 65535 (which is kind
 ;    of pointless with a 16-bit address space anyway).
 ;  - Does not support the COPY mode (just LZG1 compressed mode).
+;
+; The compiled routine is about 360 bytes, and on a stock Commodore 64 (1 MHz
+; 6510), this routine decompresses about 25 KB/s.
 ;-------------------------------------------------------------------------------
 
 
 ;-------------------------------------------------------------------------------
 ; Memory addresses
-; NOTE These 
+; NOTE These are all located in the zero page. They were chosen according to
+; common practices for the Commodore 64 (unused and temporary memory locations).
+; On other machines, other memory locations may be more suitable.
 ;-------------------------------------------------------------------------------
 
 	; Function arguments (modified by the function)
@@ -64,7 +70,6 @@
 ;-------------------------------------------------------------------------------
 
 	.text
-	* = $c000
 
 LZG_Decode
 	; Caclulate the end of the input buffer (encoded size must be <= 65535)
@@ -187,8 +192,8 @@ noinc4
 	lsr
 	lsr
 	clc
-	adc	#2
-	sta	_length				; length = (b >> 6) + 2
+	adc	#3
+	sta	_length				; length = (b >> 6) + 3
 	txa
 	and	#$3f
 	adc	#8
@@ -229,7 +234,7 @@ noinc7
 	tax
 	lda	_LZG_LENGTH_DECODE_LUT,x
 	sta	_length				; length = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
-	beq	docopy
+	bne	docopy
 
 literal2
 	jmp	literal
@@ -296,6 +301,6 @@ noinc11
 ;-------------------------------------------------------------------------------
 
 _LZG_LENGTH_DECODE_LUT
-	.byt	2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17
-	.byt	18,19,20,21,22,23,24,25,26,27,28,35,48,72,128
+	.byt	2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
+	.byt	18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128
 
