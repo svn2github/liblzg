@@ -31,8 +31,10 @@
 ; This is an assembly language implemention of the LZG decoder for the Motorola
 ; 680x0 line of processors. It is written in Motorola syntax, and compiles with
 ; vasm (http://sun.hasenbraten.de/vasm/) for instance, and should be easy to
-; modify for any other 68k assembler. The resulting code is about 0.5 KB, and
-; requires no extra memory (except for less than 100 bytes of stack space).
+; modify for any other 68k assembler.
+; The resulting code is about 0.5 KB, and requires no extra memory (except for
+; 68 bytes of stack space). The main decompression loop easily fits into the
+; 256-byte sized cache of a 68020 processor.
 ;-------------------------------------------------------------------------------
 
 	section	code,code
@@ -90,21 +92,16 @@ _LZG_GetUINT32:
 LZG_Decode:
 
 ; Stack frame
-inSize:		equ	0
-outSize:	equ	4
-encodedSize:	equ	8
-decodedSize:	equ	12
-checksum:	equ	16
-out:		equ	20
-_FRAME_SIZE:	equ	24
+encodedSize:	equ	0
+decodedSize:	equ	4
+_FRAME_SIZE:	equ	8
 
 	movem.l	d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5/a6,-(sp)
 	lea.l	-_FRAME_SIZE(sp),sp
 
 	; Remember caller arguments
-	move.l	d0,inSize(sp)
-	move.l	d1,outSize(sp)
-	move.l	a1,out(sp)
+	move.l	d0,d4				; d4 = inSize
+	move.l	d1,d5				; d5 = outSize
 
 	; Check magic ID
 	cmp.l	#LZG_HEADER_SIZE,d0
@@ -125,24 +122,24 @@ _FRAME_SIZE:	equ	24
 	move.l	d1,encodedSize(sp)
 	moveq	#11,d0
 	bsr.s	_LZG_GetUINT32
-	move.l	d1,checksum(sp)
+	move.l	d1,d6				; d6 = checksum
 
 	; Check sizes
 	move.l	decodedSize(sp),d7
-	cmp.l	outSize(sp),d7
+	cmp.l	d5,d7				; Enough space in the output buffer?
 	bhi	.fail
 	move.l	encodedSize(sp),d7
 	add.l	#LZG_HEADER_SIZE,d7
-	cmp.l	inSize(sp),d7
+	cmp.l	d4,d7				; All encoded data available?
 	bhi	.fail
 
 	; Initialize the byte streams
-	move.l	a0,a2
-	add.l	inSize(sp),a2			; a2 = inEnd = in + inSize
+	lea.l	(a0,d4.l),a2			; a2 = inEnd = in + inSize
 	move.l	a1,a3
 	add.l	decodedSize(sp),a3		; a3 = outEnd = out + decodedSize
 	lea.l	LZG_HEADER_SIZE(a0),a0		; a0 = src
 						; a1 = dst
+	move.l	a1,a6				; a6 = out
 
 	; Nothing to do...?
 	cmp.l	a0,a2
@@ -155,19 +152,19 @@ _FRAME_SIZE:	equ	24
 	moveq	#1,d2				; a = 1
 	moveq	#0,d1				; b = 0
 	moveq	#0,d3
-.cs1:	move.b	(a4)+,d3
+.csloop:
+	move.b	(a4)+,d3
 	add.w	d3,d2				; a += *data++
 	add.w	d2,d1				; b += a
-	dbf	d0,.cs1
+	dbf	d0,.csloop
 	swap	d1
-	move.w	d2,d1				; return (b << 16) | a
-	cmp.l	checksum(sp),d1
+	move.w	d2,d1				; checksum = (b << 16) | a
+	cmp.l	d6,d1				; checksum match?
 	bne.s	.fail
 
 	; Check which method to use
 	move.b	-1(a0),d7
-	cmp.b	#LZG_METHOD_COPY,d7
-	beq	.plaincopy
+	beq	.plaincopy			; LZG_METHOD_COPY = 0
 	cmp.b	#LZG_METHOD_LZG1,d7
 	bne.s	.fail
 
@@ -183,6 +180,7 @@ _FRAME_SIZE:	equ	24
 	lea.l	_LZG_LENGTH_DECODE_LUT(pc),a5	; a5 = _LZG_LENGTH_DECODE_LUT
 
 	; Main decompression loop
+	move.l	#2056,d0			; Keep the constant 2056 in d0 (for marker1)
 	cmp.l	a2,a0
 .mainloop:
 	bcc.s	.fail				; Note: cmp.l a2,a0 must be performed prior to this!
@@ -209,14 +207,14 @@ _FRAME_SIZE:	equ	24
 	cmp.l	a3,a1
 	bne.s	.fail
 	move.l	decodedSize(sp),d2
-	bra.s	.exit
+.exit:	lea.l	_FRAME_SIZE(sp),sp
+	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5/a6
+	rts
 
 	; This is where we end up if something went wrong...
 .fail:
 	moveq	#0,d2
-.exit:	lea.l	_FRAME_SIZE(sp),sp
-	movem.l	(sp)+,d0/d1/d3/d4/d5/d6/d7/a0/a1/a2/a3/a4/a5/a6
-	rts
+	bra.s	.exit
 
 	; marker4 - "Near copy (incl. RLE)"
 .marker4:
@@ -260,7 +258,7 @@ _FRAME_SIZE:	equ	24
 	move.b	(a5,d6.w),d6			; length-1 = _LZG_LENGTH_DECODE_LUT[b & 0x1f]
 	lsl.w	#3,d5
 	move.b	(a0)+,d5
-	addq.w	#8,d5				; offset = ((b & 0xe0) << 3) | b2
+	addq.w	#8,d5				; offset = (((b & 0xe0) << 3) | b2) + 8
 	bra.s	.copy
 
 	; marker1 - "Distant copy"
@@ -281,20 +279,21 @@ _FRAME_SIZE:	equ	24
 	move.b	(a0)+,d5
 	lsl.w	#8,d5
 	move.b	(a0)+,d5
-	add.l	#2056,d5			; offset = ((b & 0xe0) << 11) | (b2 << 8) | (*src++)
+	add.l	d0,d5				; offset = (((b & 0xe0) << 11) | (b2 << 8) | (*src++)) + 2056
 
 	; Copy corresponding data from history window
 	; d5 = offset
 	; d6 = length-1
 .copy:
+	lea.l	(a1,d6.l),a4
+	cmp.l	a3,a4
+	bcc	.fail
+
 	move.l	a1,a4
 	sub.l	d5,a4
 
-	cmp.l	out(sp),a4
+	cmp.l	a6,a4
 	bcs	.fail
-	lea.l	(a1,d6.l),a6
-	cmp.l	a3,a6
-	bcc	.fail
 
 .loop1:	move.b	(a4)+,(a1)+
 	dbf	d6,.loop1
@@ -316,7 +315,7 @@ _FRAME_SIZE:	equ	24
 
 
 ;-------------------------------------------------------------------------------
-; LZG_DecodedSize - Detrmine the uncompressed size for compressed memory block
+; LZG_DecodedSize - Determine the uncompressed size for compressed memory block
 ; a0 = in
 ; d0 = insize
 ; d1 = result (number of decompressed bytes, or zero upon failure)
@@ -328,13 +327,13 @@ LZG_DecodedSize:
 
 	; Check magic ID
 	cmp.l	#7,d0
-	bcs	.fail
+	bcs.s	.fail2
 	cmp.b	#'L',(a0)
-	bne	.fail
+	bne.s	.fail2
 	cmp.b	#'Z',1(a0)
-	bne	.fail
+	bne.s	.fail2
 	cmp.b	#'G',2(a0)
-	bne	.fail
+	bne.s	.fail2
 
 	; Get output buffer size
 	moveq	#3,d0
@@ -342,7 +341,7 @@ LZG_DecodedSize:
 	move.l	(sp)+,d0
 	rts
 
-.fail:	moveq	#0,d1
+.fail2:	moveq	#0,d1
 	move.l	(sp)+,d0
 	rts
 
