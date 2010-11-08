@@ -17,3 +17,7 @@ lzgmini_68k.s
     An assembler implementation of the LZG decoder for the MC68000 family of
     16/32-bit processors.
 
+lzgmini_6502.s
+    An assembler implementation of the LZG decoder for the 6502 family of
+    8-bit processors (6502/65C02/6510/8500/8502 etc).
+
