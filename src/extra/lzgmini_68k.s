@@ -32,9 +32,13 @@
 ; 680x0 line of processors. It is written in Motorola syntax, and compiles with
 ; vasm (http://sun.hasenbraten.de/vasm/) for instance, and should be easy to
 ; modify for any other 68k assembler.
+;
 ; The resulting code is about 0.5 KB, and requires no extra memory (except for
 ; 68 bytes of stack space). The main decompression loop easily fits into the
 ; 256-byte sized cache of a 68020 processor.
+;
+; Performance-wise, the routine decompresses about 100-200 KB/s on a stock
+; Amiga 500 (7 MHz 68000, slow RAM).
 ;-------------------------------------------------------------------------------
 
 	section	code,code
@@ -88,8 +92,8 @@ _LZG_GetUINT32:
 ; d2 = result (number of decompressed bytes, or zero upon failure)
 ;-------------------------------------------------------------------------------
 
-	xdef	LZG_Decode
-LZG_Decode:
+	xdef	_LZG_Decode
+_LZG_Decode:
 
 ; Stack frame
 encodedSize:	equ	0
@@ -321,8 +325,8 @@ _FRAME_SIZE:	equ	8
 ; d1 = result (number of decompressed bytes, or zero upon failure)
 ;-------------------------------------------------------------------------------
 
-	xdef	LZG_DecodedSize
-LZG_DecodedSize:
+	xdef	_LZG_DecodedSize
+_LZG_DecodedSize:
 	move.l	d0,-(sp)
 
 	; Check magic ID

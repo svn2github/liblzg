@@ -13,7 +13,7 @@ lzgmini.c
     decoder in C. This can serve as a reference implementation for translating
     the LZG decoder to other programming languages.
 
-lzgmini_68k.s
+lzgmini_68k.s / lzgmini_68k.h
     An assembler implementation of the LZG decoder for the MC68000 family of
     16/32-bit processors.
 
