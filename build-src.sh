@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name of the distribution
-distname=liblzg-1.0.0
+distname=liblzg-1.0.1
 
 # Clean the source directories
 echo Cleaning up...
@@ -29,7 +29,7 @@ cp src/lib/*.c src/lib/*.h src/lib/Makefile* $tmpdir/src/lib/
 mkdir $tmpdir/src/tools
 cp src/tools/*.c src/tools/Makefile* $tmpdir/src/tools/
 mkdir $tmpdir/src/extra
-cp src/extra/README.txt src/extra/lzgmini.c src/extra/lzgmini_m68k.s $tmpdir/src/extra/
+cp src/extra/README.txt src/extra/lzgmini.c src/extra/lzgmini_*.s src/extra/lzgmini_*.h $tmpdir/src/extra/
 
 mkdir $tmpdir/doc
 cp doc/*.svg $tmpdir/doc/

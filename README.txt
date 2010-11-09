@@ -1,5 +1,5 @@
-liblzg v1.0
-===========
+liblzg v1.0.1
+=============
 
 About
 -----
@@ -36,6 +36,14 @@ or not.
 Version history
 ---------------
 
+v1.0.1 - ????.??.??
+
+ - Added a simplified reference implementation of the decoder in C.
+ - Added assembly language implementations of the decoder for 68k processors
+   (16/32-bit architecture) and 6502 processors (8-bit architecture).
+
+
 v1.0 - 2010.10.28
-- First release
+
+ - First release
 
