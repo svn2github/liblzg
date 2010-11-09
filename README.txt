@@ -36,11 +36,14 @@ or not.
 Version history
 ---------------
 
-v1.0.1 - ????.??.??
+v1.0.1 - 2010.11.09
 
  - Added a simplified reference implementation of the decoder in C.
  - Added assembly language implementations of the decoder for 68k processors
    (16/32-bit architecture) and 6502 processors (8-bit architecture).
+ - Added an UNSAFE compile time option for the decoder.
+ - Added support for LZO in the benchmark tool (disabled by default, as all the
+   other 3rd party compression libraries).
 
 
 v1.0 - 2010.10.28
