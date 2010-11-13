@@ -59,13 +59,13 @@
         [M4] [0] => [M4]
 
     Copy from back buffer (Length bytes, Offset bytes back):
-        [M1] [%ooolllll] [%mmmmmmmm]
-            Length' = %000lllll + 2           (3-33)
-            Offset  = %00000ooo mmmmmmmm + 8  (9-2056)
-
-        [M2] [%ooolllll] [%mmmmmmmm] [%nnnnnnnn]
+        [M1] [%ooolllll] [%mmmmmmmm] [%nnnnnnnn]
             Length' = %000lllll + 2                       (3-33)
             Offset  = %00000ooo mmmmmmmm nnnnnnnn + 2056  (2057-526342)
+
+        [M2] [%ooolllll] [%mmmmmmmm]
+            Length' = %000lllll + 2           (3-33)
+            Offset  = %00000ooo mmmmmmmm + 8  (9-2056)
 
         [M3] [%lloooooo]
             Length' = %000000ll + 3  (3-6)
