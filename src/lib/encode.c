@@ -286,7 +286,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
 {
     size_t length, bestLength = 2, dist, preMatch;
     int win, bestWin = 0;
-    unsigned char *pos2, *cmp1, *cmp2, *minPos;
+    unsigned char *pos2, *cmp1, *cmp2, *minPos, *endStr;
 
     *offset = 0;
 
@@ -295,6 +295,11 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         minPos = (unsigned char*)(pos - window);
     else
         minPos = (unsigned char*)first;
+
+    /* Search string end */
+    endStr = (unsigned char*)(pos + _LZG_MAX_RUN_LENGTH);
+    if (UNLIKELY(endStr > end))
+      endStr = (unsigned char*)end;
 
     /* Previous search position */
     pos2 = sa->tab[_LZG_WindowModulo(pos - first, window)];
@@ -311,9 +316,12 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
             /* Calculate maximum match length for this offset */
             cmp1 = (unsigned char*)pos + preMatch;
             cmp2 = pos2 + preMatch;
-            length = preMatch;
-            while ((cmp1 < end) && (*cmp1++ == *cmp2++) && (length < _LZG_MAX_RUN_LENGTH))
-                ++length;
+            while (cmp1 < endStr && *cmp1 == *cmp2)
+            {
+                ++cmp1;
+                ++cmp2;
+            }
+            length = (cmp1 - pos);
 
             /* Quantize length */
             length = _LZG_LENGTH_QUANT_LUT[length];
