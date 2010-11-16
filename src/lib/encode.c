@@ -102,7 +102,7 @@ static const unsigned char _LZG_LENGTH_ENCODE_LUT[129] = {
     33                                               /* 128 */
 };
 
-/* LUT for decoding the copy length parameter */
+/* LUT for quantizing the copy length parameter */
 static const unsigned char _LZG_LENGTH_QUANT_LUT[129] = {
     0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,           /* 0 - 15 */
     16,17,18,19,20,21,22,23,24,25,26,27,28,29,29,29, /* 16 - 31 */
