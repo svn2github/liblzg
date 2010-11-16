@@ -1,4 +1,4 @@
-liblzg v1.0.1
+liblzg v1.0.2
 =============
 
 About
@@ -35,6 +35,12 @@ or not.
 
 Version history
 ---------------
+
+v1.0.2 - 2010.11.16
+
+ - Added a Pascal version of the decoder.
+ - Fixed some errors in the documentation of the data format (encode.c).
+
 
 v1.0.1 - 2010.11.09
 
