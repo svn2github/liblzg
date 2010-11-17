@@ -23,17 +23,10 @@ Without loosing compression ratio
   (/* Skip ahead... */). Keep track of last string start index (just do single
   byte read and << 8).
 
-- Precalculated mask for _LZG_WindowModulo (instead of length-1).
-
 - Precalculate "+ preMatch" in the string start LUT and the string start.
 
 - Use 32-bit indices instead of 32/64-bit pointers for the window (improved
   cache usage).
-
-- Go back to using uint32 instead of size_t (the routine shall only cope with
-  4GB buffers anyway - if >4GB buffers are necessary in the future, which would
-  require a data format change anyway, it should be possible to do some sort of
-  block compression - e.g. 1GB blocks at a time).
 
 - Try to check the longest match first (LUT with long matches for a certain
   string start?). Will mean early-out for the string match routine for shorter
@@ -45,6 +38,13 @@ Without loosing compression ratio
   (i.e. quick early out and quick LUT read).
 
 - Multi threading (speculative search). Feasible?
+
+x Precalculated mask for _LZG_WindowModulo (instead of length-1).
+
+x Go back to using uint32 instead of size_t (the routine shall only cope with
+  4GB buffers anyway - if >4GB buffers are necessary in the future, which would
+  require a data format change anyway, it should be possible to do some sort of
+  block compression - e.g. 1GB blocks at a time).
 
 
 Compression ratio degrading measures

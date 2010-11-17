@@ -116,7 +116,7 @@ static const unsigned char _LZG_LENGTH_QUANT_LUT[129] = {
 };
 
 /* Window size as a function of compression level.
-   NOTE: The window size HAS to be a power of 2 (see _LZG_WindowModulo()). */
+   NOTE: The window size HAS to be a power of 2 */
 static const unsigned int _LZG_WINDOW_SIZE[9] = {
     2048,   /* level = 1 */
     4096,   /* level = 2 */
@@ -128,8 +128,6 @@ static const unsigned int _LZG_WINDOW_SIZE[9] = {
     262144, /* level = 8 */
     524288  /* level = 9 */
 };
-
-#define _LZG_WindowModulo(idx,window) ((idx) & ((window)-1))
 
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 {
@@ -162,7 +160,7 @@ static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 }
 
 typedef struct _hist_rec {
-    unsigned int count;
+    lzg_uint32_t count;
     unsigned int symbol;
 } hist_rec;
 
@@ -171,7 +169,7 @@ static int hist_rec_compare(const void *p1, const void *p2)
     return ((hist_rec*)p1)->count - ((hist_rec*)p2)->count;
 }
 
-static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
+static int _LZG_DetermineMarkers(const unsigned char *in, lzg_uint32_t insize,
     unsigned char *leastCommon1, unsigned char *leastCommon2,
     unsigned char *leastCommon3, unsigned char *leastCommon4)
 {
@@ -212,13 +210,14 @@ static int _LZG_DetermineMarkers(const unsigned char *in, unsigned int insize,
 typedef struct _search_accel {
     unsigned char **tab;
     unsigned char **last;
-    size_t window;
-    size_t size;
+    lzg_uint32_t window;
+    lzg_uint32_t windowMask;
+    lzg_uint32_t size;
     unsigned int preMatch;
     int fast;
 } search_accel;
 
-static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size,
+static search_accel* _LZG_SearchAccel_Create(lzg_uint32_t window, lzg_uint32_t size,
     lzg_bool_t fast)
 {
     search_accel *self;
@@ -247,6 +246,7 @@ static search_accel* _LZG_SearchAccel_Create(size_t window, size_t size,
 
     /* Init parameters */
     self->window = window;
+    self->windowMask = window - 1; /* NOTE: window must be a power of 2 */
     self->size = size;
     self->preMatch = fast ? 3 : 2;
     self->fast = fast;
@@ -268,7 +268,7 @@ static void _LZG_UpdateLastPos(search_accel *sa,
     const unsigned char *first, unsigned char *pos)
 {
     lzg_uint32_t lIdx;
-    if (UNLIKELY(((size_t)(pos - first) + 2) >= sa->size)) return;
+    if (UNLIKELY(((lzg_uint32_t)(pos - first) + 2) >= sa->size)) return;
     if (LIKELY(sa->fast))
         lIdx = (((lzg_uint32_t)pos[0]) << 16) |
                (((lzg_uint32_t)pos[1]) << 8) |
@@ -276,23 +276,23 @@ static void _LZG_UpdateLastPos(search_accel *sa,
     else
         lIdx = (((lzg_uint32_t)pos[0]) << 8) |
                ((lzg_uint32_t)pos[1]);
-    sa->tab[_LZG_WindowModulo(pos - first, sa->window)] = sa->last[lIdx];
+    sa->tab[(pos - first) & sa->windowMask] = sa->last[lIdx];
     sa->last[lIdx] = pos;
 }
 
 static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
-  const unsigned char *end, const unsigned char *pos, size_t window,
-  size_t symbolCost, size_t *offset)
+  const unsigned char *end, const unsigned char *pos, lzg_uint32_t symbolCost,
+  lzg_uint32_t *offset)
 {
-    size_t length, bestLength = 2, dist, preMatch;
+    lzg_uint32_t length, bestLength = 2, dist, preMatch;
     int win, bestWin = 0;
     unsigned char *pos2, *cmp1, *cmp2, *minPos, *endStr;
 
     *offset = 0;
 
     /* Minimum search position */
-    if ((size_t)(pos - first) >= window)
-        minPos = (unsigned char*)(pos - window);
+    if ((lzg_uint32_t)(pos - first) >= sa->window)
+        minPos = (unsigned char*)(pos - sa->window);
     else
         minPos = (unsigned char*)first;
 
@@ -302,7 +302,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
       endStr = (unsigned char*)end;
 
     /* Previous search position */
-    pos2 = sa->tab[_LZG_WindowModulo(pos - first, window)];
+    pos2 = sa->tab[(pos - first) & sa->windowMask];
 
     /* Pre-matched by the acceleration structure */
     preMatch = sa->preMatch;
@@ -321,7 +321,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
                 ++cmp1;
                 ++cmp2;
             }
-            length = (cmp1 - pos);
+            length = cmp1 - pos;
 
             /* Quantize length */
             length = _LZG_LENGTH_QUANT_LUT[length];
@@ -329,7 +329,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
             /* Improvement in match length? */
             if (UNLIKELY(length > bestLength))
             {
-                dist = (size_t)(pos - pos2);
+                dist = (lzg_uint32_t)(pos - pos2);
 
                 /* Get actual compression win for this match */
                 if (UNLIKELY((dist <= 8) || ((length <= 6) && (dist <= 71))))
@@ -353,7 +353,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
         }
 
         /* Previous search position */
-        pos2 = sa->tab[_LZG_WindowModulo(pos2 - first, window)];
+        pos2 = sa->tab[(pos2 - first) & sa->windowMask];
     }
 
     /* Did we get a match that would actually compress? */
@@ -386,7 +386,7 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char marker1, marker2, marker3, marker4;
     lzg_uint32_t window;
-    size_t lengthEnc, length, offset = 0, symbolCost, i;
+    lzg_uint32_t lengthEnc, length, offset = 0, symbolCost, i;
     int level, progress, oldProgress = -1;
     char isMarkerSymbol, isMarkerSymbolLUT[255];
 
@@ -474,8 +474,7 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
         _LZG_UpdateLastPos(sa, in, src);
 
         /* Find best history match for this position in the input buffer */
-        length = _LZG_FindMatch(sa, in, inEnd, src, window, symbolCost,
-                                &offset);
+        length = _LZG_FindMatch(sa, in, inEnd, src, symbolCost, &offset);
 
         if (UNLIKELY(length > 0))
         {
