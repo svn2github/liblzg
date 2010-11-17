@@ -1,0 +1,59 @@
+TODO
+====
+
+The encoder needs to be faster!! It's possible that an alternative search data
+structure (e.g. a Patricia trie) could improve the speed alot (probably with the
+added cost of more memory). But before doing so, improving the current method
+at the low level is still quite feasible (e.g. zlib uses a very similar approach
+and still outperforms liblzg big time).
+
+
+Without loosing compression ratio
+---------------------------------
+
+- Data padding or special/slow case for the end of the input stream to reduce
+  the number of necessary checks for match termination, for instance.
+
+- Loop unrolling in the maximum length search.
+
+- Special early-out:s when crossing the non-linear-length bundaries (e.g. when
+  going from 29 to 30, try 35 first, etc).
+
+- Simplified _LZG_UpdateLastPos. Aggressive inlining in LZG_Encode
+  (/* Skip ahead... */). Keep track of last string start index (just do single
+  byte read and << 8).
+
+- Precalculated mask for _LZG_WindowModulo (instead of length-1).
+
+- Precalculate "+ preMatch" in the string start LUT and the string start.
+
+- Use 32-bit indices instead of 32/64-bit pointers for the window (improved
+  cache usage).
+
+- Go back to using uint32 instead of size_t (the routine shall only cope with
+  4GB buffers anyway - if >4GB buffers are necessary in the future, which would
+  require a data format change anyway, it should be possible to do some sort of
+  block compression - e.g. 1GB blocks at a time).
+
+- Try to check the longest match first (LUT with long matches for a certain
+  string start?). Will mean early-out for the string match routine for shorter
+  matches. Statistically feasible?
+
+- Go back to using only 16-bit string starts instead of 24-bit string starts
+  (skip "fast mode" in order to simplify things, ease up on the cache, and save
+  memory)? Might be feasible if the match search loop can be made very tight
+  (i.e. quick early out and quick LUT read).
+
+- Multi threading (speculative search). Feasible?
+
+
+Compression ratio degrading measures
+------------------------------------
+
+If introducing some sort of "quick mode", the following can be implemented:
+
+- Only try a maximum number of back matches (regardless of distance).
+
+- Be satisfied with a certain match length (currently 128, perhaps e.g.
+  29/35/48/72?).
+
