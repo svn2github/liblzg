@@ -1,4 +1,4 @@
-liblzg v1.0.2
+liblzg v1.0.3
 =============
 
 About
@@ -35,6 +35,13 @@ or not.
 
 Version history
 ---------------
+
+v1.0.3 - ????.??.??
+
+ - Improved the encoder speed by a significant amount by doing some acceptable
+   trade-offs (earlier termination of the string matching for instance). The
+   highest compression level (9) still does a full exhaustive search.
+
 
 v1.0.2 - 2010.11.16
 

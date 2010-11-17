@@ -52,8 +52,8 @@ Compression ratio degrading measures
 
 If introducing some sort of "quick mode", the following can be implemented:
 
-- Only try a maximum number of back matches (regardless of distance).
+x Only try a maximum number of back matches (regardless of distance).
 
-- Be satisfied with a certain match length (currently 128, perhaps e.g.
+x Be satisfied with a certain match length (currently 128, perhaps e.g.
   29/35/48/72?).
 

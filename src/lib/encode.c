@@ -115,18 +115,27 @@ static const unsigned char _LZG_LENGTH_QUANT_LUT[129] = {
     128                                              /* 128 */
 };
 
-/* Window size as a function of compression level.
-   NOTE: The window size HAS to be a power of 2 */
-static const unsigned int _LZG_WINDOW_SIZE[9] = {
-    2048,   /* level = 1 */
-    4096,   /* level = 2 */
-    8192,   /* level = 3 */
-    16384,  /* level = 4 */
-    32768,  /* level = 5 */
-    65536,  /* level = 6 */
-    131072, /* level = 7 */
-    262144, /* level = 8 */
-    524288  /* level = 9 */
+/* Compression tuning parameters (used for specifying different compression
+   levels) */
+typedef struct {
+    lzg_uint32_t window;        /* Size of sliding window */
+    lzg_uint32_t maxMatches;    /* Maximum number of matches to try */
+    lzg_uint32_t goodLength;    /* Don't try harder if we find this length */
+} tune_params_t;
+
+/* Tuning parameters as a function of compression level.
+   NOTE: The window size HAS to be a power of 2.
+   NOTE2: The values were chosen to make a reasonable balance. */
+static const tune_params_t _LZG_TUNING_PARAMETERS[9] = {
+    {2048, 30, 35},         /* level = 1 */
+    {4096, 40, 48},         /* level = 2 */
+    {8192, 50, 72},         /* level = 3 */
+    {16384, 60, 72},        /* level = 4 */
+    {32768, 70, 72},        /* level = 5 */
+    {65536, 80, 72},        /* level = 6 */
+    {131072, 150, 128},     /* level = 7 */
+    {262144, 250, 128},     /* level = 8 */
+    {524288, 524288, 128}   /* level = 9 (very slow - best possible) */
 };
 
 static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
@@ -207,32 +216,32 @@ static int _LZG_DetermineMarkers(const unsigned char *in, lzg_uint32_t insize,
     return TRUE;
 }
 
-typedef struct _search_accel {
+typedef struct {
     unsigned char **tab;
     unsigned char **last;
-    lzg_uint32_t window;
+    tune_params_t params;
     lzg_uint32_t windowMask;
     lzg_uint32_t size;
-    unsigned int preMatch;
-    int fast;
-} search_accel;
+    lzg_uint32_t preMatch;
+    lzg_bool_t  fast;
+} search_accel_t;
 
-static search_accel* _LZG_SearchAccel_Create(lzg_uint32_t window, lzg_uint32_t size,
-    lzg_bool_t fast)
+static search_accel_t* _LZG_SearchAccel_Create(const tune_params_t* params,
+    lzg_uint32_t size, lzg_bool_t fast)
 {
-    search_accel *self;
+    search_accel_t *self;
 
     /* Allocate memory for the sarch tab object */
-    self = malloc(sizeof(search_accel));
+    self = malloc(sizeof(search_accel_t));
     if (!self)
-        return (search_accel*) 0;
+        return (search_accel_t*) 0;
 
     /* Allocate memory for the table */
-    self->tab = calloc(window, sizeof(unsigned char *));
+    self->tab = calloc(params->window, sizeof(unsigned char *));
     if (!self->tab)
     {
         free(self);
-        return (search_accel*) 0;
+        return (search_accel_t*) 0;
     }
 
     /* Allocate memory for the "last symbol occurance" array */
@@ -241,12 +250,12 @@ static search_accel* _LZG_SearchAccel_Create(lzg_uint32_t window, lzg_uint32_t s
     {
         free(self->tab);
         free(self);
-        return (search_accel*) 0;
+        return (search_accel_t*) 0;
     }
 
     /* Init parameters */
-    self->window = window;
-    self->windowMask = window - 1; /* NOTE: window must be a power of 2 */
+    self->params = *params;
+    self->windowMask = params->window - 1; /* NOTE: window must be a power of 2 */
     self->size = size;
     self->preMatch = fast ? 3 : 2;
     self->fast = fast;
@@ -254,7 +263,7 @@ static search_accel* _LZG_SearchAccel_Create(lzg_uint32_t window, lzg_uint32_t s
     return self;
 }
 
-static void _LZG_SearchAccel_Destroy(search_accel *self)
+static void _LZG_SearchAccel_Destroy(search_accel_t *self)
 {
     if (!self)
         return;
@@ -264,7 +273,7 @@ static void _LZG_SearchAccel_Destroy(search_accel *self)
     free(self);
 }
 
-static void _LZG_UpdateLastPos(search_accel *sa,
+static void _LZG_UpdateLastPos(search_accel_t *sa,
     const unsigned char *first, unsigned char *pos)
 {
     lzg_uint32_t lIdx;
@@ -280,19 +289,19 @@ static void _LZG_UpdateLastPos(search_accel *sa,
     sa->last[lIdx] = pos;
 }
 
-static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
+static lzg_uint32_t _LZG_FindMatch(search_accel_t *sa, const unsigned char *first,
   const unsigned char *end, const unsigned char *pos, lzg_uint32_t symbolCost,
   lzg_uint32_t *offset)
 {
-    lzg_uint32_t length, bestLength = 2, dist, preMatch;
+    lzg_uint32_t length, bestLength = 2, dist, preMatch, maxMatches;
     int win, bestWin = 0;
     unsigned char *pos2, *cmp1, *cmp2, *minPos, *endStr;
 
     *offset = 0;
 
     /* Minimum search position */
-    if ((lzg_uint32_t)(pos - first) >= sa->window)
-        minPos = (unsigned char*)(pos - sa->window);
+    if ((lzg_uint32_t)(pos - first) >= sa->params.window)
+        minPos = (unsigned char*)(pos - sa->params.window);
     else
         minPos = (unsigned char*)first;
 
@@ -308,7 +317,8 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
     preMatch = sa->preMatch;
 
     /* Main search loop */
-    while (pos2 && (pos2 > minPos))
+    maxMatches = sa->params.maxMatches;
+    while (pos2 && (pos2 > minPos) && (maxMatches--))
     {
         /* If we don't have a match at bestLength, don't even bother... */
         if (UNLIKELY(pos[bestLength] == pos2[bestLength]))
@@ -346,7 +356,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel *sa, const unsigned char *first,
                     bestWin = win;
                     *offset = dist;
                     bestLength = length;
-                    if (UNLIKELY(length == 128))
+                    if (UNLIKELY(length >= sa->params.goodLength))
                         break;
                 }
             }
@@ -385,12 +395,12 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
 {
     unsigned char *src, *inEnd, *dst, *outEnd, symbol;
     unsigned char marker1, marker2, marker3, marker4;
-    lzg_uint32_t window;
+    const tune_params_t *params;
     lzg_uint32_t lengthEnc, length, offset = 0, symbolCost, i;
     int level, progress, oldProgress = -1;
     char isMarkerSymbol, isMarkerSymbolLUT[255];
 
-    search_accel *sa = (search_accel*) 0;
+    search_accel_t *sa = (search_accel_t*) 0;
     lzg_encoder_config_t defaultConfig;
     lzg_header hdr;
 
@@ -413,8 +423,8 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
     else
         level = config->level;
 
-    /* Get the window size */
-    window = _LZG_WINDOW_SIZE[level - 1];
+    /* Get the compression tuning parameters (window size etc) */
+    params = &_LZG_TUNING_PARAMETERS[level - 1];
 
     /* Calculate histogram and find optimal marker symbols */
     if (!_LZG_DetermineMarkers(in, insize, &marker1, &marker2, &marker3,
@@ -422,7 +432,7 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
         goto fail;
 
     /* Initialize search accelerator */
-    sa = _LZG_SearchAccel_Create(window, insize, config->fast);
+    sa = _LZG_SearchAccel_Create(params, insize, config->fast);
     if (!sa)
         goto fail;
 
