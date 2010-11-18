@@ -390,6 +390,7 @@ void ShowUsage(char *prgName)
     fprintf(stderr, " -9      Use best compression\n");
     fprintf(stderr, " -s      Do not use the fast method (saves memory, LZG only)\n");
     fprintf(stderr, " -v      Be verbose\n");
+    fprintf(stderr, " -m      Perform multiple passes (10)\n");
     fprintf(stderr, " -lzg    Use LZG compression (default).\n");
 #ifdef USE_ZLIB
     fprintf(stderr, " -zlib   Use zlib compression.\n");
@@ -423,7 +424,7 @@ int main(int argc, char **argv)
     unsigned int decSize = 0;
     unsigned char *encBuf;
     unsigned int maxEncSize, encSize, t;
-    int arg, level, fast, verbose;
+    int arg, level, fast, verbose, pass, numPasses, success;
     LZGPROGRESSFUN progressfun = 0;
     codec_t c;
 
@@ -432,6 +433,7 @@ int main(int argc, char **argv)
     level = 5;
     verbose = 0;
     fast = 1;
+    numPasses = 1;
     InitCodecLZG(&c);
 
     // Get arguments
@@ -457,6 +459,8 @@ int main(int argc, char **argv)
             level = 9;
         else if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
+        else if (strcmp("-m", argv[arg]) == 0)
+            numPasses = 10;
         else if (strcmp("-s", argv[arg]) == 0)
             fast = 0;
         else if (strcmp("-lzg", argv[arg]) == 0)
@@ -489,82 +493,90 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    // Read input file
-    decBuf = (unsigned char*) 0;
-    inFile = fopen(inName, "rb");
-    if (inFile)
+    for (pass = 1; pass <= numPasses; ++pass)
     {
-        fseek(inFile, 0, SEEK_END);
-        fileSize = (unsigned int) ftell(inFile);
-        fseek(inFile, 0, SEEK_SET);
-        if (fileSize > 0)
+        success = 0;
+
+        // Read input file
+        decBuf = (unsigned char*) 0;
+        inFile = fopen(inName, "rb");
+        if (inFile)
         {
-            decSize = (unsigned int) fileSize;
-            decBuf = (unsigned char*) malloc(decSize);
-            if (decBuf)
+            fseek(inFile, 0, SEEK_END);
+            fileSize = (unsigned int) ftell(inFile);
+            fseek(inFile, 0, SEEK_SET);
+            if (fileSize > 0)
             {
-                if (fread(decBuf, 1, decSize, inFile) != decSize)
+                decSize = (unsigned int) fileSize;
+                decBuf = (unsigned char*) malloc(decSize);
+                if (decBuf)
                 {
-                    fprintf(stderr, "Error reading \"%s\".\n", inName);
-                    free(decBuf);
-                    decBuf = (unsigned char*) 0;
+                    if (fread(decBuf, 1, decSize, inFile) != decSize)
+                    {
+                        fprintf(stderr, "Error reading \"%s\".\n", inName);
+                        free(decBuf);
+                        decBuf = (unsigned char*) 0;
+                    }
                 }
+                else
+                    fprintf(stderr, "Out of memory.\n");
             }
             else
-                fprintf(stderr, "Out of memory.\n");
+                fprintf(stderr, "Input file is empty.\n");
+
+            fclose(inFile);
         }
         else
-            fprintf(stderr, "Input file is empty.\n");
+            fprintf(stderr, "Unable to open file \"%s\".\n", inName);
 
-        fclose(inFile);
-    }
-    else
-        fprintf(stderr, "Unable to open file \"%s\".\n", inName);
+        if (!decBuf)
+            return 0;
 
-    if (!decBuf)
-        return 0;
+        // Determine maximum size of compressed data
+        maxEncSize = c.MaxEncodedSize(decSize);
 
-    // Determine maximum size of compressed data
-    maxEncSize = c.MaxEncodedSize(decSize);
-
-    // Allocate memory for the compressed data
-    encBuf = (unsigned char*) malloc(maxEncSize);
-    if (encBuf)
-    {
-        // Compress
-        if (verbose)
-            progressfun = ShowProgress;
-        StartTimer();
-        encSize = c.Encode(decBuf, decSize, encBuf, maxEncSize,
-                            level, fast, progressfun, stderr);
-        t = StopTimer();
-        if (encSize)
+        // Allocate memory for the compressed data
+        encBuf = (unsigned char*) malloc(maxEncSize);
+        if (encBuf)
         {
-            fprintf(stdout, "Compression: %d us (%lld KB/s)\n", t,
-                            (decSize * (long long) 977) / t);
-
-            // Compressed data is now in encBuf, now decompress it...
+            // Compress
+            if (verbose)
+                progressfun = ShowProgress;
             StartTimer();
-            decSize = c.Decode(encBuf, encSize, decBuf, decSize);
+            encSize = c.Encode(decBuf, decSize, encBuf, maxEncSize,
+                                level, fast, progressfun, stderr);
             t = StopTimer();
-            if (decSize)
+            if (encSize)
             {
-                fprintf(stdout, "Decompression: %d us (%lld KB/s)\n", t,
+                fprintf(stdout, "Compression: %d us (%lld KB/s)\n", t,
                                 (decSize * (long long) 977) / t);
-                fprintf(stdout, "Sizes: %d => %d bytes, %d%%\n", decSize, encSize,
-                                (100 * encSize) / decSize);
+
+                // Compressed data is now in encBuf, now decompress it...
+                StartTimer();
+                decSize = c.Decode(encBuf, encSize, decBuf, decSize);
+                t = StopTimer();
+                if (decSize)
+                {
+                    fprintf(stdout, "Decompression: %d us (%lld KB/s)\n", t,
+                                    (decSize * (long long) 977) / t);
+                    fprintf(stdout, "Sizes: %d => %d bytes, %d%%\n", decSize, encSize,
+                                    (100 * encSize) / decSize);
+                    success = 1;
+                }
+                else
+                    fprintf(stderr, "Decompression failed!\n");
             }
             else
-                fprintf(stderr, "Decompression failed!\n");
+                fprintf(stderr, "Compression failed!\n");
+
+            // Free memory when we're done with the compressed data
+            free(encBuf);
         }
         else
-            fprintf(stderr, "Compression failed!\n");
+            fprintf(stderr, "Out of memory!\n");
 
-        // Free memory when we're done with the compressed data
-        free(encBuf);
+        if (!success) break;
     }
-    else
-        fprintf(stderr, "Out of memory!\n");
 
     // Free memory
     free(decBuf);
