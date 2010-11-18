@@ -54,6 +54,38 @@ If introducing some sort of "quick mode", the following can be implemented:
 
 x Only try a maximum number of back matches (regardless of distance).
 
+- Reduce maximum number of back match attempts if a good enough length was
+  found (i.e. try harder when we don't have a very good match).
+
 x Be satisfied with a certain match length (currently 128, perhaps e.g.
   29/35/48/72?).
+
+
+Other issues
+------------
+
+- The Canterbury corpus kennedy.xls file is giving strange compression results:
+  compression level 1 (window = 2048) gives significantly better compression
+  ratio than any other compression level! This indicates that we are not doing
+  optimal compression (and if the compression for the kennedy.xls file is fixed,
+  other files will probably gain from it too).
+  
+  NOTE: zlib also has problems with this file (levels 5 & 6 compress better than
+  levels 7, 8 & 9).
+
+  Possible problem: an optimal match is "hidden/prevented" by a previously
+  chosen match, for example:
+
+    str1:   ...BAAAA...       (far, offset > 2048)
+    str2:   ...AAAAAAAAA...   (close, offset < 2048)
+    str3:   ...BAAAAAAAAA...
+
+  Now, str3 will be encoded as: ...[ref str1][ref str2]..., taking 7 bytes.
+  An alternative would be to encode it as ...B[ref str2]..., which would require
+  only 4 bytes, i.e. 3 bytes better than with the current strategy of the
+  encoder!
+
+  A solution would be to try a few extra matches when a match is found, before
+  deciding whether to chose it or not (how advanced strategy? how much speed
+  loss? only for short matches?).
 
