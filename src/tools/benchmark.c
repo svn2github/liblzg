@@ -529,57 +529,57 @@ int main(int argc, char **argv)
         else
             fprintf(stderr, "Unable to open file \"%s\".\n", inName);
 
-        if (!decBuf)
-            return 0;
-
-        // Determine maximum size of compressed data
-        maxEncSize = c.MaxEncodedSize(decSize);
-
-        // Allocate memory for the compressed data
-        encBuf = (unsigned char*) malloc(maxEncSize);
-        if (encBuf)
+        if (decBuf)
         {
-            // Compress
-            if (verbose)
-                progressfun = ShowProgress;
-            StartTimer();
-            encSize = c.Encode(decBuf, decSize, encBuf, maxEncSize,
-                                level, fast, progressfun, stderr);
-            t = StopTimer();
-            if (encSize)
-            {
-                fprintf(stdout, "Compression: %d us (%lld KB/s)\n", t,
-                                (decSize * (long long) 977) / t);
+            // Determine maximum size of compressed data
+            maxEncSize = c.MaxEncodedSize(decSize);
 
-                // Compressed data is now in encBuf, now decompress it...
+            // Allocate memory for the compressed data
+            encBuf = (unsigned char*) malloc(maxEncSize);
+            if (encBuf)
+            {
+                // Compress
+                if (verbose)
+                    progressfun = ShowProgress;
                 StartTimer();
-                decSize = c.Decode(encBuf, encSize, decBuf, decSize);
+                encSize = c.Encode(decBuf, decSize, encBuf, maxEncSize,
+                                    level, fast, progressfun, stderr);
                 t = StopTimer();
-                if (decSize)
+                if (encSize)
                 {
-                    fprintf(stdout, "Decompression: %d us (%lld KB/s)\n", t,
+                    fprintf(stdout, "Compression: %d us (%lld KB/s)\n", t,
                                     (decSize * (long long) 977) / t);
-                    fprintf(stdout, "Sizes: %d => %d bytes, %d%%\n", decSize, encSize,
-                                    (100 * encSize) / decSize);
-                    success = 1;
+
+                    // Compressed data is now in encBuf, now decompress it...
+                    StartTimer();
+                    decSize = c.Decode(encBuf, encSize, decBuf, decSize);
+                    t = StopTimer();
+                    if (decSize)
+                    {
+                        fprintf(stdout, "Decompression: %d us (%lld KB/s)\n", t,
+                                        (decSize * (long long) 977) / t);
+                        fprintf(stdout, "Sizes: %d => %d bytes, %d%%\n", decSize, encSize,
+                                        (100 * encSize) / decSize);
+                        success = 1;
+                    }
+                    else
+                        fprintf(stderr, "Decompression failed!\n");
                 }
                 else
-                    fprintf(stderr, "Decompression failed!\n");
+                    fprintf(stderr, "Compression failed!\n");
+
+                // Free memory when we're done with the compressed data
+                free(encBuf);
             }
             else
-                fprintf(stderr, "Compression failed!\n");
+                fprintf(stderr, "Out of memory!\n");
 
-            // Free memory when we're done with the compressed data
-            free(encBuf);
+            // Free memory when we're done with the decompressed data
+            free(decBuf);
         }
-        else
-            fprintf(stderr, "Out of memory!\n");
 
         if (!success) break;
     }
-
-    // Free memory
-    free(decBuf);
 
     return 0;
 }
