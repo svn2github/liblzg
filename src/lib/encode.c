@@ -356,7 +356,11 @@ static lzg_uint32_t _LZG_FindMatch(search_accel_t *sa, const unsigned char *firs
                     bestWin = win;
                     *offset = dist;
                     bestLength = length;
-                    if (UNLIKELY(length >= sa->params.goodLength))
+
+                    /* Did we find a match that was good enough, or did we reach
+                       the end of the buffer (no longer match is possible)? */
+                    if (UNLIKELY((length >= sa->params.goodLength) ||
+                                 (cmp1 >= endStr)))
                         break;
                 }
             }
