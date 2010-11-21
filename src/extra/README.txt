@@ -16,6 +16,9 @@ lzgmini.c
 lzgmini.pas
     A Pascal implementation of the LZG decoder.
 
+lzgmini.lua
+    A Lua implementation of the LZG decoder.
+
 lzgmini_68k.s / lzgmini_68k.h
     An assembler implementation of the LZG decoder for the MC68000 family of
     16/32-bit processors.
