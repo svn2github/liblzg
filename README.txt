@@ -36,11 +36,12 @@ or not.
 Version history
 ---------------
 
-v1.0.3 - ????.??.??
+v1.0.3 - 2010.11.21
 
  - Improved the encoder speed by a significant amount by doing some acceptable
    trade-offs (earlier termination of the string matching for instance). The
    highest compression level (9) still does a full exhaustive search.
+ - Fixed an illegal memory read in the encoder.
 
 
 v1.0.2 - 2010.11.16
