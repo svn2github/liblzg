@@ -24,7 +24,7 @@
 --    distribution.
 
 -- Calculate the checksum
-function LZG_CalcChecksum(data)
+local function LZG_CalcChecksum(data)
   local a = 1
   local b = 0
   local i
@@ -35,6 +35,10 @@ function LZG_CalcChecksum(data)
   return b * 65536 + a
 end
 
+-- LUT for decoding the copy length parameter
+local LZG_LENGTH_DECODE_LUT = {3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
+                               18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128}
+
 -- Decode LZG coded data
 function LZG_Decode(data)
   -- Check magic ID
@@ -43,7 +47,7 @@ function LZG_Decode(data)
     return ''
   end
 
-  -- Check the checksum
+  -- Calculate & check the checksum
   local checksum = data:byte(12) * 16777216 + data:byte(13) * 65536 +
                    data:byte(14) * 256 + data:byte(15)
   if LZG_CalcChecksum(data) ~= checksum then
@@ -53,10 +57,6 @@ function LZG_Decode(data)
   -- Check which method to use (LZG_METHOD_LZG1 = 1)
   local method = data:byte(16)
   if method == 1 then
-    -- LUT for decoding the copy length parameter
-    local LZG_LENGTH_DECODE_LUT = {3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
-                                   18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128}
-
     -- Get marker symbols
     local m1 = data:byte(17)
     local m2 = data:byte(18)
@@ -64,14 +64,15 @@ function LZG_Decode(data)
     local m4 = data:byte(20)
 
     -- Main decompression loop
-    local dst = ''
+    local dst = {}
+
     local symbol, b, b2, b3, length, offset, copy, i
     local k = 21
-    while k < data:len() do
+    while k <= data:len() do
       symbol = data:byte(k); k = k + 1
       if (symbol ~= m1) and (symbol ~= m2) and (symbol ~= m3) and (symbol ~= m4) then
         -- Literal copy
-        dst = dst..string.char(symbol)
+        dst[#dst+1] = string.char(symbol)
       else
         b = data:byte(k); k = k + 1
         if b ~= 0 then
@@ -98,15 +99,15 @@ function LZG_Decode(data)
 
           -- Copy the corresponding data from the history window
           for i=1,length do
-            dst = dst..string.char(dst:byte(dst:len()+1-offset))
+            dst[#dst+1] = dst[#dst+1-offset]
           end
         else
           -- Literal copy (single occurance of a marker symbol)
-          dst = dst..string.char(symbol)
+          dst[#dst+1] = string.char(symbol)
         end
       end
     end
-    return dst
+    return table.concat(dst)
   elseif method == 0 then
     -- Plain copy (LZG_METHOD_COPY)
     return data:sub(17)
