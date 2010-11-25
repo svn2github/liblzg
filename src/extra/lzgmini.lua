@@ -64,10 +64,9 @@ function LZG_Decode(data)
     local m4 = data:byte(20)
 
     -- Main decompression loop
-    local dst = {}
-
     local symbol, b, b2, b3, length, offset, copy, i
     local k = 21
+    local dst = {}
     local dstlen = 0
     while k <= data:len() do
       symbol = data:byte(k); k = k + 1
@@ -96,7 +95,7 @@ function LZG_Decode(data)
           else
             -- marker4 - "Near copy (incl. RLE)"
             length = LZG_LENGTH_DECODE_LUT[b % 32];
-            offset = math.floor(b/32) + 1
+            offset = math.floor(b / 32) + 1
           end
 
           -- Copy the corresponding data from the history window
