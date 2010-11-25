@@ -23,6 +23,10 @@
 -- 3. This notice may not be removed or altered from any source
 --    distribution.
 
+-- LUT for decoding the copy length parameter
+local LZG_LENGTH_DECODE_LUT = {3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
+                               18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128}
+
 -- Calculate the checksum
 local function LZG_CalcChecksum(data)
   local a = 1
@@ -34,10 +38,6 @@ local function LZG_CalcChecksum(data)
   end
   return b * 65536 + a
 end
-
--- LUT for decoding the copy length parameter
-local LZG_LENGTH_DECODE_LUT = {3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
-                               18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128}
 
 -- Decode LZG coded data
 function LZG_Decode(data)
@@ -68,11 +68,13 @@ function LZG_Decode(data)
 
     local symbol, b, b2, b3, length, offset, copy, i
     local k = 21
+    local dstlen = 0
     while k <= data:len() do
       symbol = data:byte(k); k = k + 1
       if (symbol ~= m1) and (symbol ~= m2) and (symbol ~= m3) and (symbol ~= m4) then
         -- Literal copy
-        dst[#dst+1] = string.char(symbol)
+        dstlen = dstlen + 1
+        dst[dstlen] = string.char(symbol)
       else
         b = data:byte(k); k = k + 1
         if b ~= 0 then
@@ -98,12 +100,14 @@ function LZG_Decode(data)
           end
 
           -- Copy the corresponding data from the history window
-          for i=1,length do
-            dst[#dst+1] = dst[#dst+1-offset]
+          for i = 1,length do
+            dstlen = dstlen + 1
+            dst[dstlen] = dst[dstlen-offset]
           end
         else
           -- Literal copy (single occurance of a marker symbol)
-          dst[#dst+1] = string.char(symbol)
+          dstlen = dstlen + 1
+          dst[dstlen] = string.char(symbol)
         end
       end
     end
