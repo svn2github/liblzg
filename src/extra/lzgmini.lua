@@ -1,5 +1,6 @@
 -- -*- mode: lua; tab-width: 2; indent-tabs-mode: nil; -*-
 
+--------------------------------------------------------------------------------
 -- This file is part of liblzg.
 --
 -- Copyright (c) 2010 Marcus Geelnard
@@ -22,17 +23,57 @@
 --
 -- 3. This notice may not be removed or altered from any source
 --    distribution.
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- Description
+-- -----------
+-- This is a Lua implementation of the LZG decoder. Here is an example of how
+-- to use it in a Lua program:
+--
+--  require("lzgmini")
+--  f = io.open(nameOfFile, "rb")
+--  compressedData = f:read("*all")
+--  f:close()
+--  data = lzgmini.decode(compressedData)
+--
+-- ...where the resulting data is a string variable (or an empty string, if the
+-- decompression failed).
+--
+-- The performance of this implementation is not as good as the native C version
+-- found in the main liblzg library, obviously, but still fairly good. As a
+-- rule of thumb, the Lua decoder is about 80 times slower than the optimized C
+-- version. Though that may sound very slow, a modern computer (2-3 GHz 64-bit)
+-- is able to decompress about 4 MB/s using this Lua implementation.
+--
+-- For even better performance, you can use LuaJIT. It gives about four times
+-- faster deompression compared to traditional Lua.
+--------------------------------------------------------------------------------
+
+
+-- We need string, math and table in this module
+local string = string
+local math = math
+local table = table
+
+module("lzgmini")
+
+
+-- Constants
+local LZG_HEADER_SIZE = 16
+local LZG_METHOD_COPY = 0
+local LZG_METHOD_LZG1 = 1
 
 -- LUT for decoding the copy length parameter
-local LZG_LENGTH_DECODE_LUT = {3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,
-                               18,19,20,21,22,23,24,25,26,27,28,29,35,48,72,128}
+local LZG_LENGTH_DECODE_LUT = {3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
+                               20,21,22,23,24,25,26,27,28,29,35,48,72,128}
 
 -- Calculate the checksum
-local function LZG_CalcChecksum(data)
+local function calcchecksum(data)
   local a = 1
   local b = 0
   local i
-  for i = 17,data:len() do
+  for i = (LZG_HEADER_SIZE + 1),data:len() do
     a = (a + data:byte(i)) % 65536
     b = (b + a) % 65536
   end
@@ -40,9 +81,9 @@ local function LZG_CalcChecksum(data)
 end
 
 -- Decode LZG coded data
-function LZG_Decode(data)
+function decode(data)
   -- Check magic ID
-  if (data:len() < 16) or (data:byte(1) ~= 76) or
+  if (data:len() < LZG_HEADER_SIZE) or (data:byte(1) ~= 76) or
      (data:byte(2) ~= 90) or (data:byte(3) ~= 71) then
     return ''
   end
@@ -50,13 +91,13 @@ function LZG_Decode(data)
   -- Calculate & check the checksum
   local checksum = data:byte(12) * 16777216 + data:byte(13) * 65536 +
                    data:byte(14) * 256 + data:byte(15)
-  if LZG_CalcChecksum(data) ~= checksum then
+  if calcchecksum(data) ~= checksum then
     return ''
   end
 
-  -- Check which method to use (LZG_METHOD_LZG1 = 1)
+  -- Check which method to use
   local method = data:byte(16)
-  if method == 1 then
+  if method == LZG_METHOD_LZG1 then
     -- Get marker symbols
     local m1 = data:byte(17)
     local m2 = data:byte(18)
@@ -65,10 +106,11 @@ function LZG_Decode(data)
 
     -- Main decompression loop
     local symbol, b, b2, b3, length, offset, copy, i
-    local k = 21
     local dst = {}
     local dstlen = 0
-    while k <= data:len() do
+    local datalen = data:len()
+    local k = LZG_HEADER_SIZE + 5
+    while k <= datalen do
       symbol = data:byte(k); k = k + 1
       if (symbol ~= m1) and (symbol ~= m2) and (symbol ~= m3) and (symbol ~= m4) then
         -- Literal copy
@@ -77,6 +119,7 @@ function LZG_Decode(data)
       else
         b = data:byte(k); k = k + 1
         if b ~= 0 then
+          -- Decode offset / length parameters
           if symbol == m1 then
             -- marker1 - "Distant copy"
             length = LZG_LENGTH_DECODE_LUT[b % 32];
@@ -110,9 +153,11 @@ function LZG_Decode(data)
         end
       end
     end
+
+    -- Collapse the table-of-chars into a string and return it
     return table.concat(dst)
-  elseif method == 0 then
-    -- Plain copy (LZG_METHOD_COPY)
+  elseif method == LZG_METHOD_COPY then
+    -- Plain copy
     return data:sub(17)
   else
     -- Unknown method

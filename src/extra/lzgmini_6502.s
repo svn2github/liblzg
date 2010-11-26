@@ -41,7 +41,7 @@
 ; 6510), this routine decompresses about 25 KB/s.
 ;
 ; Tips
-;  - This routine can be tilored in several ways for more optimal operation.
+;  - This routine can be tailored in several ways for more optimal operation.
 ;    One idea is to use a small circular buffer for the encoded data, for
 ;    instance for decompressing the data while loading it from disk.
 ;  - With careful planning, you can overlap input and output buffers (put the

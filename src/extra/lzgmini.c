@@ -117,16 +117,19 @@ lzg_uint32_t LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
 
             if ((symbol != m1) && (symbol != m2) && (symbol != m3) && (symbol != m4))
             {
+                /* Literal copy */
                 if (!(dst < outEnd)) return 0;
                 *dst++ = symbol;
             }
             else
             {
+                /* Decode offset / length parameters */
                 if (!(src < inEnd)) return 0;
                 if ((b = *src++))
                 {
                     if (symbol == m1)
                     {
+                        /* Distant copy */
                         if (!((src + 2) <= inEnd)) return 0;
                         length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                         b2 = *src++;
@@ -137,6 +140,7 @@ lzg_uint32_t LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
                     }
                     else if (symbol == m2)
                     {
+                        /* Medium copy */
                         if (!(src < inEnd)) return 0;
                         length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                         b2 = *src++;
@@ -145,15 +149,18 @@ lzg_uint32_t LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
                     }
                     else if (symbol == m3)
                     {
+                        /* Short copy */
                         length = (b >> 6) + 3;
                         offset = (b & 0x3f) + 8;
                     }
                     else
                     {
+                        /* Near copy (including RLE) */
                         length = _LZG_LENGTH_DECODE_LUT[b & 0x1f];
                         offset = (b >> 5) + 1;
                     }
 
+                    /* Copy the corresponding data from the history window */
                     copy = dst - offset;
                     if (!((copy >= out) && ((dst + length) <= outEnd))) return 0;
                     for (i = 0; i < length; ++i)
@@ -161,6 +168,7 @@ lzg_uint32_t LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
                 }
                 else
                 {
+                    /* Literal copy (single occurance of a marker symbol) */
                     if (!(dst < outEnd)) return 0;
                     *dst++ = symbol;
                 }
@@ -169,6 +177,7 @@ lzg_uint32_t LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
     }
     else if (method == LZG_METHOD_COPY)
     {
+        /* Plain copy */
         while ((src < inEnd) && (dst < outEnd))
             *dst++ = *src++;
     }
