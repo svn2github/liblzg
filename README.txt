@@ -36,7 +36,7 @@ or not.
 Version history
 ---------------
 
-v1.0.4 - 2010.??.??
+v1.0.4 - 2010.11.26
 
  - FIXED A CRITICAL BUG IN THE ENCODER: Offsets equal to 2056 would be encoded
    as 8, resulting in wrong encoded data, and hence also wrong decoded data.
