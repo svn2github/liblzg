@@ -162,7 +162,7 @@ unsigned int LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
         /* Marker symbol? */
         if (LIKELY(!isMarkerSymbolLUT[symbol]))
         {
-            /* Plain copy */
+            /* Literal copy */
             CHECK_BOUNDS(dst < outEnd);
             *dst++ = symbol;
         }
