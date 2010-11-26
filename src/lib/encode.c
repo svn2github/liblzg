@@ -61,11 +61,11 @@
     Copy from back buffer (Length bytes, Offset bytes back):
         [M1] [%ooolllll] [%mmmmmmmm] [%nnnnnnnn]
             Length' = %000lllll + 2                       (3-33)
-            Offset  = %00000ooo mmmmmmmm nnnnnnnn + 2056  (2057-526342)
+            Offset  = %00000ooo mmmmmmmm nnnnnnnn + 2056  (2056-526341)
 
         [M2] [%ooolllll] [%mmmmmmmm]
             Length' = %000lllll + 2           (3-33)
-            Offset  = %00000ooo mmmmmmmm + 8  (9-2056)
+            Offset  = %00000ooo mmmmmmmm + 8  (8-2055)
 
         [M3] [%lloooooo]
             Length' = %000000ll + 3  (3-6)
@@ -347,7 +347,7 @@ static lzg_uint32_t _LZG_FindMatch(search_accel_t *sa, const unsigned char *firs
                 else
                 {
                     win = length + symbolCost - 4;
-                    if (dist >= 2057) --win;
+                    if (dist >= 2056) --win;
                 }
 
                 /* Best so far? */
@@ -507,7 +507,7 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
                 *dst++ = marker4;
                 *dst++ = ((offset - 1) << 5) | (lengthEnc - 2);
             }
-            else if (LIKELY(offset >= 2057))
+            else if (LIKELY(offset >= 2056))
             {
                 /* Generic copy (emit 4 bytes) */
                 if (UNLIKELY((dst + 4) > outEnd)) goto overflow;
