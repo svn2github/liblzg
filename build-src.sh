@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Name of the distribution
-distname=liblzg-1.0.3
+distname=liblzg-1.0.4
 
 # Clean the source directories
 echo Cleaning up...

@@ -1,4 +1,4 @@
-liblzg v1.0.3
+liblzg v1.0.4
 =============
 
 About
@@ -35,6 +35,13 @@ or not.
 
 Version history
 ---------------
+
+v1.0.4 - 2010.??.??
+
+ - FIXED A CRITICAL BUG IN THE ENCODER: Offsets equal to 2056 would be encoded
+   as 8, resulting in wrong encoded data, and hence also wrong decoded data.
+ - Added a Lua version of the decoder.
+
 
 v1.0.3 - 2010.11.21
 

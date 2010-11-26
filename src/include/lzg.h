@@ -32,12 +32,12 @@
 extern "C" {
 #endif
 
-#define LZG_VERSION "1.0.3"    /**< @brief LZG library version string */
-#define LZG_VERNUM  0x01000003 /**< @brief LZG library version number (strictly
+#define LZG_VERSION "1.0.4"    /**< @brief LZG library version string */
+#define LZG_VERNUM  0x01000004 /**< @brief LZG library version number (strictly
                                     incremental) */
 #define LZG_VER_MAJOR    1     /**< @brief LZG library major version */
 #define LZG_VER_MINOR    0     /**< @brief LZG library minor version */
-#define LZG_VER_REVISION 3     /**< @brief LZG library revision */
+#define LZG_VER_REVISION 4     /**< @brief LZG library revision */
 
 /**
 * @file
@@ -181,9 +181,8 @@ typedef struct {
     /** @brief Use fast method (LZG_FALSE or LZG_TRUE).
 
         Boolean flag that specifies whether or not to use a faster encoding
-        acceleration data structure. The resulting compressed data is
-        identical regardless of the value passed here, but the amount of
-        memory used is different.
+        acceleration data structure, which requires more memory. When using the
+        fast method, the compression ratio is usually slightly improved.
 
         Default value: LZG_TRUE */
     lzg_bool_t fast;
