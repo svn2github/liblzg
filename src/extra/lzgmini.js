@@ -33,8 +33,17 @@
 // Example usage:
 //
 //   var lzg = new lzgmini();
-//   var str = lzg.decode(compressedStr);
+//   var decompressedSize = lzg.decode(compressedStr);
+//   var str = lzg.getUTF8String();
 //
+// The lzgmini class provides a few different methods for retrieving the
+// decoded data:
+//
+//   getByteArray()  - Get the raw (numeric) byte array.
+//   get8bitString() - Get the data as a string, assuming it is encoded in a
+//                     plain 8-bit fashion (e.g. ASCII or Latin1).
+//   getUTF8String() - Get the data as a string, assuming it is encoded in
+//                     UTF-8 format.
 //------------------------------------------------------------------------------
 
 function lzgmini() {
@@ -48,8 +57,11 @@ function lzgmini() {
   this.LZG_LENGTH_DECODE_LUT = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
                                 20,21,22,23,24,25,26,27,28,29,35,48,72,128];
 
+  // Decoded data (produced by the decode() method)
+  this.outdata = null;
+
   // Calculate the checksum
-  this.calc_checksum = function(data) {
+  this.calcChecksum = function(data) {
     var a = 1;
     var b = 0;
     var i = this.LZG_HEADER_SIZE;
@@ -62,13 +74,17 @@ function lzgmini() {
     return (b << 16) | a;
   }
 
-  // Decode LZG coded data
+  // Decode LZG coded data. The function returns the size of the decoded data.
+  // Use any of the get* methods to retrieve the decoded data.
   this.decode = function(data) {
+    // Start by clearing the decompressed array in this object
+    this.outdata = null;
+
     // Check magic ID
     if ((data.length < this.LZG_HEADER_SIZE) || (data.charCodeAt(0) != 76) ||
          (data.charCodeAt(1) != 90) ||  (data.charCodeAt(2) != 71))
     {
-      return "";
+      return 0;
     }
 
     // Calculate & check the checksum
@@ -76,12 +92,12 @@ function lzgmini() {
                    ((data.charCodeAt(12) & 0xff) << 16) |
                    ((data.charCodeAt(13) & 0xff) << 8) |
                    (data.charCodeAt(14) & 0xff);
-    if (this.calc_checksum(data) != checksum)
+    if (this.calcChecksum(data) != checksum)
     {
-      return "";
+      return 0;
     }
 
-    /* Check which method to use */
+    // Check which method to use
     var method = data.charCodeAt(15) & 0xff;
     if (method == this.LZG_METHOD_LZG1)
     {
@@ -154,23 +170,79 @@ function lzgmini() {
         }
       }
 
-      // Convert the array to a string, and return it
-      // FIXME: This does not handle Unicode characters correctly!
-      var result = "";
-      for (i = 0; i < dstlen; ++i)
-        result += String.fromCharCode(dst[i]);
-      return result;
+      // Store the decompressed data in the lzgmini object for later retrieval
+      this.outdata = dst;
+      return dstlen;
     }
     else if (method == this.LZG_METHOD_COPY)
     {
       // Plain copy
-      return data.substr(this.LZG_HEADER_SIZE);
+      var dst = new Array();
+      var dstlen = 0;
+      var datalen = data.length;
+      for (var i = this.LZG_HEADER_SIZE; i < datalen; i++)
+        dst[dstlen++] = data.charCodeAt(i) & 0xff;
+      return dstlen;
     }
     else
     {
       // Unknown method
-      return "";
+      return 0;
     }
+  }
+
+  // Get the decoded byte array
+  this.getByteArray = function()
+  {
+    return this.outdata;
+  }
+
+  // Get the decoded string from a plain 8-bit array (e.g. Latin1 or ASCII)
+  this.get8bitString = function()
+  {
+    var str = "";
+    if (this.outdata != null)
+    {
+      var outlen = this.outdata.length;
+      for (var i = 0; i < outlen; i++)
+        str += String.fromCharCode(this.outdata[i]);
+    }
+    return str;
+  }
+
+  // Get the decoded string from an UTF-8 array
+  this.getUTF8String = function()
+  {
+    var str = "";
+    if (this.outdata != null)
+    {
+      var c = c1 = c2 = 0;
+      var outlen = this.outdata.length;
+      var i = 0;
+      while (i < outlen)
+      {
+        c = this.outdata[i];
+        if (c < 128)
+        {
+          str += String.fromCharCode(c);
+          i++;
+        }
+        else if((c > 191) && (c < 224))
+        {
+          c2 = this.outdata[i + 1];
+          str += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+          i += 2;
+        }
+        else
+        {
+          c2 = this.outdata[i + 1];
+          c3 = this.outdata[i + 2];
+          str += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+          i += 3;
+        }
+      }
+    }
+    return str;
   }
 }
 
