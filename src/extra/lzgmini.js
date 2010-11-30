@@ -39,32 +39,32 @@
 // The lzgmini class provides a few different methods for retrieving the
 // decoded data:
 //
-//   getByteArray()  - Get the raw (numeric) byte array.
-//   get8bitString() - Get the data as a string, assuming it is encoded in a
-//                     plain 8-bit fashion (e.g. ASCII or Latin1).
-//   getUTF8String() - Get the data as a string, assuming it is encoded in
-//                     UTF-8 format.
+//   getByteArray()    - Get the raw (numeric) byte array.
+//   getStringLatin1() - Get the data as a string, assuming it is encoded in
+//                       8-bit Latin 1 (ISO-8859-1, also works with ASCII).
+//   getStringUTF8()   - Get the data as a string, assuming it is encoded in
+//                       UTF-8 format.
 //------------------------------------------------------------------------------
 
 function lzgmini() {
 
   // Constants
-  this.LZG_HEADER_SIZE = 16;
-  this.LZG_METHOD_COPY = 0;
-  this.LZG_METHOD_LZG1 = 1;
+  var LZG_HEADER_SIZE = 16;
+  var LZG_METHOD_COPY = 0;
+  var LZG_METHOD_LZG1 = 1;
 
   // LUT for decoding the copy length parameter
-  this.LZG_LENGTH_DECODE_LUT = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
-                                20,21,22,23,24,25,26,27,28,29,35,48,72,128];
+  var LZG_LENGTH_DECODE_LUT = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,
+                               20,21,22,23,24,25,26,27,28,29,35,48,72,128];
 
   // Decoded data (produced by the decode() method)
-  this.outdata = null;
+  var outdata = null;
 
   // Calculate the checksum
-  this.calcChecksum = function(data) {
+  var calcChecksum = function(data) {
     var a = 1;
     var b = 0;
-    var i = this.LZG_HEADER_SIZE;
+    var i = LZG_HEADER_SIZE;
     while (i < data.length)
     {
       a = (a + (data.charCodeAt(i) & 0xff)) & 0xffff;
@@ -78,10 +78,10 @@ function lzgmini() {
   // Use any of the get* methods to retrieve the decoded data.
   this.decode = function(data) {
     // Start by clearing the decompressed array in this object
-    this.outdata = null;
+    outdata = null;
 
     // Check magic ID
-    if ((data.length < this.LZG_HEADER_SIZE) || (data.charCodeAt(0) != 76) ||
+    if ((data.length < LZG_HEADER_SIZE) || (data.charCodeAt(0) != 76) ||
          (data.charCodeAt(1) != 90) ||  (data.charCodeAt(2) != 71))
     {
       return 0;
@@ -92,14 +92,14 @@ function lzgmini() {
                    ((data.charCodeAt(12) & 0xff) << 16) |
                    ((data.charCodeAt(13) & 0xff) << 8) |
                    (data.charCodeAt(14) & 0xff);
-    if (this.calcChecksum(data) != checksum)
+    if (calcChecksum(data) != checksum)
     {
       return 0;
     }
 
     // Check which method to use
     var method = data.charCodeAt(15) & 0xff;
-    if (method == this.LZG_METHOD_LZG1)
+    if (method == LZG_METHOD_LZG1)
     {
       // Get marker symbols
       var m1 = data.charCodeAt(16) & 0xff;
@@ -111,7 +111,7 @@ function lzgmini() {
       var symbol, b, b2, b3, len, offset;
       var dst = new Array();
       var dstlen = 0;
-      var k = this.LZG_HEADER_SIZE + 4;
+      var k = LZG_HEADER_SIZE + 4;
       var datalen = data.length;
       while (k <= datalen)
       {
@@ -130,7 +130,7 @@ function lzgmini() {
             if (symbol == m1)
             {
               // marker1 - "Distant copy"
-              len = this.LZG_LENGTH_DECODE_LUT[b & 0x1f];
+              len = LZG_LENGTH_DECODE_LUT[b & 0x1f];
               b2 = data.charCodeAt(k++) & 0xff;
               b3 = data.charCodeAt(k++) & 0xff;
               offset = (((b & 0xe0) << 11) | (b2 << 8) | b3) + 2056;
@@ -138,7 +138,7 @@ function lzgmini() {
             else if (symbol == m2)
             {
               // marker2 - "Medium copy"
-              len = this.LZG_LENGTH_DECODE_LUT[b & 0x1f];
+              len = LZG_LENGTH_DECODE_LUT[b & 0x1f];
               b2 = data.charCodeAt(k++) & 0xff;
               offset = (((b & 0xe0) << 3) | b2) + 8;
             }
@@ -151,7 +151,7 @@ function lzgmini() {
             else
             {
               // marker4 - "Near copy (incl. RLE)"
-              len = this.LZG_LENGTH_DECODE_LUT[b & 0x1f];
+              len = LZG_LENGTH_DECODE_LUT[b & 0x1f];
               offset = (b >> 5) + 1;
             }
 
@@ -171,17 +171,20 @@ function lzgmini() {
       }
 
       // Store the decompressed data in the lzgmini object for later retrieval
-      this.outdata = dst;
+      outdata = dst;
       return dstlen;
     }
-    else if (method == this.LZG_METHOD_COPY)
+    else if (method == LZG_METHOD_COPY)
     {
       // Plain copy
       var dst = new Array();
       var dstlen = 0;
       var datalen = data.length;
-      for (var i = this.LZG_HEADER_SIZE; i < datalen; i++)
+      for (var i = LZG_HEADER_SIZE; i < datalen; i++)
+      {
         dst[dstlen++] = data.charCodeAt(i) & 0xff;
+      }
+      outdata = dst;
       return dstlen;
     }
     else
@@ -194,34 +197,34 @@ function lzgmini() {
   // Get the decoded byte array
   this.getByteArray = function()
   {
-    return this.outdata;
+    return outdata;
   }
 
-  // Get the decoded string from a plain 8-bit array (e.g. Latin1 or ASCII)
-  this.get8bitString = function()
+  // Get the decoded string from a Latin 1 (or ASCII) encoded array
+  this.getStringLatin1 = function()
   {
     var str = "";
-    if (this.outdata != null)
+    if (outdata != null)
     {
-      var outlen = this.outdata.length;
+      var outlen = outdata.length;
       for (var i = 0; i < outlen; i++)
-        str += String.fromCharCode(this.outdata[i]);
+        str += String.fromCharCode(outdata[i]);
     }
     return str;
   }
 
-  // Get the decoded string from an UTF-8 array
-  this.getUTF8String = function()
+  // Get the decoded string from an UTF-8 encoded array
+  this.getStringUTF8 = function()
   {
     var str = "";
-    if (this.outdata != null)
+    if (outdata != null)
     {
       var c = c1 = c2 = 0;
-      var outlen = this.outdata.length;
+      var outlen = outdata.length;
       var i = 0;
       while (i < outlen)
       {
-        c = this.outdata[i];
+        c = outdata[i];
         if (c < 128)
         {
           str += String.fromCharCode(c);
@@ -229,14 +232,14 @@ function lzgmini() {
         }
         else if((c > 191) && (c < 224))
         {
-          c2 = this.outdata[i + 1];
+          c2 = outdata[i + 1];
           str += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
           i += 2;
         }
         else
         {
-          c2 = this.outdata[i + 1];
-          c3 = this.outdata[i + 2];
+          c2 = outdata[i + 1];
+          c3 = outdata[i + 2];
           str += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
           i += 3;
         }
