@@ -33,8 +33,8 @@
 // Example usage:
 //
 //   var lzg = new lzgmini();
-//   var decompressedSize = lzg.decode(compressedStr);
-//   var str = lzg.getUTF8String();
+//   lzg.decode(compressedStr);
+//   var str = lzg.getStringUTF8();
 //
 // The lzgmini class provides a few different methods for retrieving the
 // decoded data:
