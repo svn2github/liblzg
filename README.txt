@@ -36,7 +36,7 @@ or not.
 Version history
 ---------------
 
-v1.0.5 - 2010.??.??
+v1.0.5 - 2010.12.01
 
  - Added a JavaScript version of the decoder.
 
