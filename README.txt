@@ -1,4 +1,4 @@
-liblzg v1.0.4
+liblzg v1.0.5
 =============
 
 About
@@ -35,6 +35,11 @@ or not.
 
 Version history
 ---------------
+
+v1.0.5 - 2010.??.??
+
+ - Added a JavaScript version of the decoder.
+
 
 v1.0.4 - 2010.11.26
 

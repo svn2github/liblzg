@@ -32,12 +32,12 @@
 extern "C" {
 #endif
 
-#define LZG_VERSION "1.0.4"    /**< @brief LZG library version string */
-#define LZG_VERNUM  0x01000004 /**< @brief LZG library version number (strictly
+#define LZG_VERSION "1.0.5"    /**< @brief LZG library version string */
+#define LZG_VERNUM  0x01000005 /**< @brief LZG library version number (strictly
                                     incremental) */
 #define LZG_VER_MAJOR    1     /**< @brief LZG library major version */
 #define LZG_VER_MINOR    0     /**< @brief LZG library minor version */
-#define LZG_VER_REVISION 4     /**< @brief LZG library revision */
+#define LZG_VER_REVISION 5     /**< @brief LZG library revision */
 
 /**
 * @file
