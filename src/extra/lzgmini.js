@@ -206,9 +206,12 @@ function lzgmini() {
     var str = "";
     if (outdata != null)
     {
+      var charLUT = new Array();
+      for (var i = 0; i < 256; ++i)
+        charLUT[i] = String.fromCharCode(i);
       var outlen = outdata.length;
       for (var i = 0; i < outlen; i++)
-        str += String.fromCharCode(outdata[i]);
+        str += charLUT[outdata[i]];
     }
     return str;
   }
@@ -219,29 +222,30 @@ function lzgmini() {
     var str = "";
     if (outdata != null)
     {
-      var c = c1 = c2 = 0;
+      var charLUT = new Array();
+      for (var i = 0; i < 128; ++i)
+        charLUT[i] = String.fromCharCode(i);
+      var c;
       var outlen = outdata.length;
-      var i = 0;
-      while (i < outlen)
+      for (var i = 0; i < outlen;)
       {
-        c = outdata[i];
+        c = outdata[i++];
         if (c < 128)
         {
-          str += String.fromCharCode(c);
-          i++;
-        }
-        else if((c > 191) && (c < 224))
-        {
-          c2 = outdata[i + 1];
-          str += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
-          i += 2;
+          str += charLUT[c];
         }
         else
         {
-          c2 = outdata[i + 1];
-          c3 = outdata[i + 2];
-          str += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
-          i += 3;
+          if ((c > 191) && (c < 224))
+          {
+            c = ((c & 31) << 6) | (outdata[i++] & 63);
+          }
+          else
+          {
+            c = ((c & 15) << 12) | ((outdata[i] & 63) << 6) | (outdata[i+1] & 63);
+            i += 2;
+          }
+          str += String.fromCharCode(c);
         }
       }
     }
