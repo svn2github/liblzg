@@ -169,14 +169,18 @@ static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 }
 
 typedef struct _hist_rec {
-    lzg_uint32_t count;
-    unsigned int symbol;
-    lzg_bool_t   taken;
+    lzg_int32_t count;
+    int         symbol;
+    lzg_bool_t  taken;
 } hist_rec;
 
 static int hist_rec_compare(const void *p1, const void *p2)
 {
-    return ((hist_rec*)p1)->count - ((hist_rec*)p2)->count;
+    hist_rec *h1 = (hist_rec*)p1;
+    hist_rec *h2 = (hist_rec*)p2;
+    if (h1->count != h2->count)
+      return h1->count - h2->count;
+    return h1->symbol - h2->symbol;
 }
 
 static int _LZG_DetermineMarkers(const unsigned char *in, lzg_uint32_t insize,
@@ -442,6 +446,7 @@ void LZG_InitEncoderConfig(lzg_encoder_config_t *config)
     config->progressfun = NULL;
     config->userdata = NULL;
     config->latin1 = LZG_FALSE;
+    config->printenc = LZG_FALSE;
 }
 
 lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
