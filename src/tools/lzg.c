@@ -47,6 +47,7 @@ void ShowUsage(char *prgName)
     fprintf(stderr, " -s  Do not use the fast method (saves memory)\n");
     fprintf(stderr, " -v  Be verbose\n");
     fprintf(stderr, " -V  Show LZG library version and exit\n");
+    fprintf(stderr, " -latin1 Prefer Latin 1 codes for marker bytes\n");
     fprintf(stderr, "\nIf no output file is given, stdout is used for output.\n");
 }
 
@@ -94,6 +95,8 @@ int main(int argc, char **argv)
             config.fast = LZG_FALSE;
         else if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
+        else if (strcmp("-latin1", argv[arg]) == 0)
+            config.latin1 = LZG_TRUE;
         else if (strcmp("-V", argv[arg]) == 0)
         {
             printf("LZG library version %s\n", LZG_VersionString());

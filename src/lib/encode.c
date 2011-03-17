@@ -171,6 +171,7 @@ static void _LZG_SetHeader(unsigned char *out, lzg_header *hdr)
 typedef struct _hist_rec {
     lzg_uint32_t count;
     unsigned int symbol;
+    lzg_bool_t   taken;
 } hist_rec;
 
 static int hist_rec_compare(const void *p1, const void *p2)
@@ -179,8 +180,9 @@ static int hist_rec_compare(const void *p1, const void *p2)
 }
 
 static int _LZG_DetermineMarkers(const unsigned char *in, lzg_uint32_t insize,
-    unsigned char *leastCommon1, unsigned char *leastCommon2,
-    unsigned char *leastCommon3, unsigned char *leastCommon4)
+    lzg_encoder_config_t *config, unsigned char *leastCommon1,
+    unsigned char *leastCommon2, unsigned char *leastCommon3,
+    unsigned char *leastCommon4)
 {
     hist_rec *hist;
     unsigned int i;
@@ -196,6 +198,7 @@ static int _LZG_DetermineMarkers(const unsigned char *in, lzg_uint32_t insize,
     {
         hist[i].count = 0;
         hist[i].symbol = i;
+        hist[i].taken = LZG_FALSE;
     }
     src = (unsigned char *) in;
     for (i = 0; i < insize; ++i)
@@ -205,10 +208,56 @@ static int _LZG_DetermineMarkers(const unsigned char *in, lzg_uint32_t insize,
     qsort((void *)hist, 256, sizeof(hist_rec), hist_rec_compare);
 
     /* Find least common symbols */
-    *leastCommon1 = (unsigned char) hist[0].symbol;
-    *leastCommon2 = (unsigned char) hist[1].symbol;
-    *leastCommon3 = (unsigned char) hist[2].symbol;
-    *leastCommon4 = (unsigned char) hist[3].symbol;
+    if (config->latin1)
+    {
+        unsigned char markers[4];
+        unsigned int markerId = 0;
+        unsigned int start = 0, end;
+
+        while (markerId < 4)
+        {
+            /* Find range of equal occurances */
+            for (i = start; i < 256 && hist[i].count == hist[start].count; ++i)
+                end = i;
+
+            /* Search range for Latin 1 codes */
+            for (i = start; i <= end && markerId < 4; ++i)
+            {
+                if (((hist[i].symbol >= 32) && (hist[i].symbol <= 126)) ||
+                    ((hist[i].symbol >= 160) && (hist[i].symbol <= 255)))
+                {
+                    markers[markerId++] = hist[i].symbol;
+                    hist[i].taken = LZG_TRUE;
+                }
+            }
+
+            /* Fall back to non-Latin 1 codes */
+            for (i = start; i <= end && markerId < 4; ++i)
+            {
+                if (!hist[i].taken)
+                {
+                    markers[markerId++] = hist[i].symbol;
+                    hist[i].taken = LZG_TRUE;
+                }
+            }
+
+            /* Next range of equal occurances... */
+            start = end + 1;
+        }
+
+        *leastCommon1 = (unsigned char) markers[0];
+        *leastCommon2 = (unsigned char) markers[1];
+        *leastCommon3 = (unsigned char) markers[2];
+        *leastCommon4 = (unsigned char) markers[3];
+    }
+    else
+    {
+        /* Just pick the first entries in the histogram */
+        *leastCommon1 = (unsigned char) hist[0].symbol;
+        *leastCommon2 = (unsigned char) hist[1].symbol;
+        *leastCommon3 = (unsigned char) hist[2].symbol;
+        *leastCommon4 = (unsigned char) hist[3].symbol;
+    }
 
     /* Free memory for histogram */
     free(hist);
@@ -392,6 +441,7 @@ void LZG_InitEncoderConfig(lzg_encoder_config_t *config)
     config->fast = LZG_TRUE;
     config->progressfun = NULL;
     config->userdata = NULL;
+    config->latin1 = LZG_FALSE;
 }
 
 lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
@@ -431,7 +481,7 @@ lzg_uint32_t LZG_Encode(const unsigned char *in, lzg_uint32_t insize,
     params = &_LZG_TUNING_PARAMETERS[level - 1];
 
     /* Calculate histogram and find optimal marker symbols */
-    if (!_LZG_DetermineMarkers(in, insize, &marker1, &marker2, &marker3,
+    if (!_LZG_DetermineMarkers(in, insize, config, &marker1, &marker2, &marker3,
                                &marker4))
         goto fail;
 

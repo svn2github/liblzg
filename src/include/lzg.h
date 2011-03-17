@@ -187,6 +187,14 @@ typedef struct {
         Default value: LZG_TRUE */
     lzg_bool_t fast;
 
+    /** @brief Prefer Latin 1 codes (LZG_FALSE or LZG_TRUE).
+
+        Boolean flag that specifies whether or not to prefer valid Latin 1 codes
+        for the marker bytes (i.e. 32-126 and 160-255).
+
+        Default value: LZG_FALSE */
+    lzg_bool_t latin1;
+
     /** @brief Encoding progress callback function.
 
         This function will be called during compression to report progress
