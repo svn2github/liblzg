@@ -28,7 +28,8 @@
 # Compiler and linker settings
 CC = gcc
 CFLAGS = -c -O3 -W -Wall -I../include
-LC = gcc
+CPP = g++
+CPPFLAGS = -c -O3 -W -Wall -I../include
 LFLAGS = -L../lib
 LIBS = -llzg
 RM = rm -f
@@ -60,26 +61,32 @@ UNLZG = unlzg
 UNLZG_OBJS = unlzg.o
 BENCHMARK = benchmark
 BENCHMARK_OBJS = benchmark.o
+JSPACK = jspack
+JSPACK_OBJS = jspack.o
 STATIC_LIB = ../lib/liblzg.a
 
 .PHONY: all clean
 
 # Master rule
-all: $(LZG) $(UNLZG) $(BENCHMARK)
+all: $(LZG) $(UNLZG) $(BENCHMARK) $(JSPACK)
 
 # Clean rule
 clean:
-	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS) $(BENCHMARK) $(BENCHMARK_OBJS)
+	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS) \
+	      $(BENCHMARK) $(BENCHMARK_OBJS) $(JSPACK) $(JSPACK_OBJS)
 
 # Program build rules
 $(LZG): $(LZG_OBJS) $(STATIC_LIB)
-	$(LC) $(LFLAGS) -o $@ $(LZG_OBJS) $(LIBS)
+	$(CC) $(LFLAGS) -o $@ $(LZG_OBJS) $(LIBS)
 
 $(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB)
-	$(LC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
+	$(CC) $(LFLAGS) -o $@ $(UNLZG_OBJS) $(LIBS)
 
 $(BENCHMARK): $(BENCHMARK_OBJS) $(STATIC_LIB)
-	$(LC) $(LFLAGS) -o $@ $(BENCHMARK_OBJS) $(BM_LIBS)
+	$(CC) $(LFLAGS) -o $@ $(BENCHMARK_OBJS) $(BM_LIBS)
+
+$(JSPACK): $(JSPACK_OBJS) $(STATIC_LIB)
+	$(CPP) $(LFLAGS) -o $@ $(JSPACK_OBJS) $(LIBS)
 
 # Object files build rules
 lzg.o: lzg.c ../include/lzg.h
@@ -90,4 +97,7 @@ unlzg.o: unlzg.c ../include/lzg.h
 
 benchmark.o: benchmark.c ../include/lzg.h
 	$(CC) $(BM_CFLAGS) $<
+
+jspack.o: jspack.cpp ../include/lzg.h
+	$(CPP) $(CPPFLAGS) $<
 

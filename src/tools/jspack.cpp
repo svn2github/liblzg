@@ -1,9 +1,9 @@
-/* -*- mode: c; tab-width: 4; indent-tabs-mode: nil; -*- */
+/* -*- mode: c++; tab-width: 4; indent-tabs-mode: nil; -*- */
 
 /*
 * This file is part of liblzg.
 *
-* Copyright (c) 2010 Marcus Geelnard
+* Copyright (c) 2011 Marcus Geelnard
 *
 * This software is provided 'as-is', without any express or implied
 * warranty. In no event will the authors be held liable for any damages
@@ -25,41 +25,43 @@
 *    distribution.
 */
 
-#include <stdio.h>
+#include <iostream>
+#include <fstream>
+#include <ostream>
+#include <istream>
+
 #include <stdlib.h>
 #include <string.h>
 #include <lzg.h>
 
+using namespace std;
+
 
 void ShowProgress(int progress, void *data)
 {
-    FILE *f = (FILE *)data;
-    fprintf(f, "Progress: %d%%   \r", progress);
-    fflush(f);
+    ostream *o = (ostream *)data;
+    (*o) << "Progress: " << progress << "%   \r" << flush;
 }
 
 void ShowUsage(char *prgName)
 {
-    fprintf(stderr, "Usage: %s [options] infile [outfile]\n", prgName);
-    fprintf(stderr, "\nOptions:\n");
-    fprintf(stderr, " -1  Use fastest compression\n");
-    fprintf(stderr, " -9  Use best compression\n");
-    fprintf(stderr, " -s  Do not use the fast method (saves memory)\n");
-    fprintf(stderr, " -v  Be verbose\n");
-    fprintf(stderr, " -V  Show LZG library version and exit\n");
-    fprintf(stderr, "\nIf no output file is given, stdout is used for output.\n");
+    cerr << "Usage: " << prgName << " [options] infile [outfile]" << endl;
+    cerr << endl << "Options:" << endl;
+    cerr << " -v        Be verbose" << endl;
+    cerr << " -nostrip  Do not strip/preprocess JavaScript source" << endl;
+    cerr << " -V        Show LZG library version and exit" << endl;
+    cerr << endl << "If no output file is given, stdout is used for output." << endl;
 }
 
 int main(int argc, char **argv)
 {
     char *inName, *outName;
-    FILE *inFile, *outFile;
     size_t fileSize;
     unsigned char *decBuf;
     lzg_uint32_t decSize = 0;
     unsigned char *encBuf;
     lzg_uint32_t maxEncSize, encSize;
-    int arg, verbose;
+    int arg, verbose, strip;
     lzg_encoder_config_t config;
 
     // Default arguments
@@ -67,36 +69,20 @@ int main(int argc, char **argv)
     outName = NULL;
     LZG_InitEncoderConfig(&config);
     config.fast = LZG_TRUE;
+    config.level = LZG_LEVEL_9;
     verbose = 0;
+    strip = 1;
 
     // Get arguments
     for (arg = 1; arg < argc; ++arg)
     {
-        if (strcmp("-1", argv[arg]) == 0)
-            config.level = LZG_LEVEL_1;
-        else if (strcmp("-2", argv[arg]) == 0)
-            config.level = LZG_LEVEL_2;
-        else if (strcmp("-3", argv[arg]) == 0)
-            config.level = LZG_LEVEL_3;
-        else if (strcmp("-4", argv[arg]) == 0)
-            config.level = LZG_LEVEL_4;
-        else if (strcmp("-5", argv[arg]) == 0)
-            config.level = LZG_LEVEL_5;
-        else if (strcmp("-6", argv[arg]) == 0)
-            config.level = LZG_LEVEL_6;
-        else if (strcmp("-7", argv[arg]) == 0)
-            config.level = LZG_LEVEL_7;
-        else if (strcmp("-8", argv[arg]) == 0)
-            config.level = LZG_LEVEL_8;
-        else if (strcmp("-9", argv[arg]) == 0)
-            config.level = LZG_LEVEL_9;
-        else if (strcmp("-s", argv[arg]) == 0)
-            config.fast = LZG_FALSE;
-        else if (strcmp("-v", argv[arg]) == 0)
+        if (strcmp("-v", argv[arg]) == 0)
             verbose = 1;
+        else if (strcmp("-nostrip", argv[arg]) == 0)
+            strip = 0;
         else if (strcmp("-V", argv[arg]) == 0)
         {
-            printf("LZG library version %s\n", LZG_VersionString());
+            cout << "LZG library version " << LZG_VersionString() << endl;
             return 0;
         }
         else if (!inName)
@@ -117,38 +103,45 @@ int main(int argc, char **argv)
 
     // Read input file
     decBuf = (unsigned char*) 0;
-    inFile = fopen(inName, "rb");
-    if (inFile)
+    ifstream inFile(inName, ios_base::in | ios_base::binary);
+    if (!inFile.fail())
     {
-        fseek(inFile, 0, SEEK_END);
-        fileSize = (size_t) ftell(inFile);
-        fseek(inFile, 0, SEEK_SET);
+        inFile.seekg(0, ios::end);
+        fileSize = (size_t) inFile.tellg();
+        inFile.seekg(0, ios::beg);
         if (fileSize > 0)
         {
             decSize = (lzg_uint32_t) fileSize;
             decBuf = (unsigned char*) malloc(decSize);
             if (decBuf)
             {
-                if (fread(decBuf, 1, decSize, inFile) != decSize)
+                inFile.read((char*)decBuf, decSize);
+                if (inFile.gcount() != decSize)
                 {
-                    fprintf(stderr, "Error reading \"%s\".\n", inName);
+                    cerr << "Error reading \"" << inName << "\"." << endl;
                     free(decBuf);
                     decBuf = (unsigned char*) 0;
                 }
             }
             else
-                fprintf(stderr, "Out of memory.\n");
+                cerr << "Out of memory." << endl;
         }
         else
-            fprintf(stderr, "Input file is empty.\n");
+            cerr << "Input file is empty." << endl;
 
-        fclose(inFile);
+        inFile.close();
     }
     else
-        fprintf(stderr, "Unable to open file \"%s\".\n", inName);
+        cerr << "Unable to open file \"" << inName << "\"." << endl;
 
     if (!decBuf)
         return 0;
+
+    // Strip whitespaces etc...
+    if (strip)
+    {
+        // FIXME
+    }
 
     // Determine maximum size of compressed data
     maxEncSize = LZG_MaxEncodedSize(decSize);
@@ -161,46 +154,47 @@ int main(int argc, char **argv)
         if (verbose)
         {
             config.progressfun = ShowProgress;
-            config.userdata = stderr;
+            config.userdata = (void*)&cerr;
         }
         encSize = LZG_Encode(decBuf, decSize, encBuf, maxEncSize, &config);
         if (encSize)
         {
             if (verbose)
             {
-                fprintf(stderr, "Result: %d bytes (%d%% of the original)\n",
-                                encSize, (100 * encSize) / decSize);
+                cerr << "Result: " << encSize << " bytes (" <<
+                        ((100 * encSize) / decSize) << "% of the original)" << endl;
             }
+
+            // Encode in printable characters...
+            // FIXME!
 
             // Compressed data is now in encBuf, write it...
+            bool failed = false;
             if (outName)
             {
-                outFile = fopen(outName, "wb");
-                if (!outFile)
-                    fprintf(stderr, "Unable to open file \"%s\".\n", outName);
+                ofstream outFile(outName, ios_base::out | ios_base::binary);
+                if (outFile.fail())
+                    cerr << "Unable to open file \"" << outName << "\"." << endl;
+                outFile.write((char*)encBuf, encSize);
+                failed = outFile.fail();
+                outFile.close();
             }
             else
-                outFile = stdout;
-
-            if (outFile)
             {
-                // Write data
-                if (fwrite(encBuf, 1, encSize, outFile) != encSize)
-                    fprintf(stderr, "Error writing to output file.\n");
-
-                // Close file
-                if (outName)
-                    fclose(outFile);
+                cout.write((char*)encBuf, encSize);
+                failed = cout.fail();
             }
+            if (failed)
+              cerr << "Error writing to output file." << endl;
         }
         else
-            fprintf(stderr, "Compression failed!\n");
+            cerr << "Compression failed!" << endl;
 
         // Free memory when we're done with the compressed data
         free(encBuf);
     }
     else
-        fprintf(stderr, "Out of memory!\n");
+        cerr << "Out of memory!" << endl;
 
     // Free memory
     free(decBuf);

@@ -187,28 +187,6 @@ typedef struct {
         Default value: LZG_TRUE */
     lzg_bool_t fast;
 
-    /** @brief Prefer Latin 1 codes (LZG_FALSE or LZG_TRUE).
-
-        Boolean flag that specifies whether or not to prefer valid Latin 1 codes
-        for the marker bytes (i.e. 32-126 and 160-255).
-
-        Default value: LZG_FALSE */
-    lzg_bool_t latin1;
-
-    /** @brief Encode data using printable characters (LZG_FALSE or LZG_TRUE).
-
-        Boolean flag that specifies whether or not to use a special encoding
-        that produces valid Latin 1 codes (i.e. 32-126 and 160-255). The
-        resulting data will require slightly more space.
-
-        @note This option is experimental. When enabled, the output data is not
-        compatible with the standard LZG decoder. Also, the value returned by
-        LZG_MaxEncodedSize() must be multiplied by two (2) in order to
-        accommodate for the increased data size when using this option.
-
-        Default value: LZG_FALSE */
-    lzg_bool_t printenc;
-
     /** @brief Encoding progress callback function.
 
         This function will be called during compression to report progress
