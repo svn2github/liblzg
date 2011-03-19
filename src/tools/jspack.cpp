@@ -29,13 +29,128 @@
 #include <fstream>
 #include <ostream>
 #include <istream>
+#include <string>
 
 #include <stdlib.h>
-#include <string.h>
 #include <lzg.h>
 
 using namespace std;
 
+// List of characters that do not require a white space
+static const char collapseChars[] = {
+    '{', '}', '(', ')', '[', ']', '<', '>', '=', '+', '-', '*', '/', '%', '!',
+    ',', '~', '&', '|', ':', ';'
+};
+
+lzg_uint32_t StripSource(unsigned char *buf, lzg_uint32_t size)
+{
+    lzg_uint32_t src, dst = 0;
+    bool inComment1 = false, inComment2 = false;
+    bool inString1 = false, inString2 = false;
+    bool hasWhitespace = false;
+    for (src = 0; src < size; ++src)
+    {
+        bool keep = false;
+        if (!(inComment1 || inComment2))
+        {
+            if (inString1 || inString2)
+            {
+                // Has the string been terminated?
+                if (inString1 && (buf[src] == 34))
+                    inString1 = false;
+                else if (inString2 && (buf[src] == 39))
+                    inString2 = false;
+                keep = true;
+
+                hasWhitespace = false;
+            }
+            else
+            {
+                if (buf[src] == 34)
+                {
+                    // Start of string type 1 (starting with a ")
+                    inString1 = true;
+                    keep = true;
+                }
+                else if (buf[src] == 39)
+                {
+                    // Start of string type 2 (starting with a ')
+                    inString2 = true;
+                    keep = true;
+                }
+                else if ((src < size - 1) && (buf[src] == '/') &&
+                         (buf[src+1] == '/'))
+                {
+                    // Start of comment type 1 (line comment)
+                    inComment1 = true;
+                }
+                else if ((src < size - 1) && (buf[src] == '/') &&
+                         (buf[src+1] == '*'))
+                {
+                    // Start of comment type 2 (block comment)
+                    inComment2 = true;
+                }
+                else if ((buf[src] == 9) || (buf[src] == 32))
+                {
+                    // This is a white space, should we keep it?
+                    if (!hasWhitespace)
+                    {
+                        buf[src] = 32;
+                        keep = true;
+
+                        // Can we collapse with the previous char?
+                        if (src > 1)
+                        {
+                            for (unsigned int i = 0; i < sizeof(collapseChars); ++i)
+                            {
+                                if (buf[src-1] == collapseChars[i])
+                                    keep = false;
+                            }
+                        }
+
+                        // Can we collapse with the next char?
+                        if (src < size - 1)
+                        {
+                            for (unsigned int i = 0; i < sizeof(collapseChars); ++i)
+                            {
+                                if (buf[src+1] == collapseChars[i])
+                                    keep = false;
+                            }
+                        }
+                    }
+                }
+                else if ((buf[src] != 10) && (buf[src] != 13))
+                {
+                    // None white space char - keep it!
+                    keep = true;
+                }
+
+                hasWhitespace = (buf[src] == 9) || (buf[src] == 32);
+            }
+        }
+        else
+        {
+            // Has the comment been terminated?
+            if (inComment1)
+            {
+                if ((buf[src] == 10) || (buf[src] == 13))
+                    inComment1 = false;
+            }
+            else if (inComment2 && (src >= 1))
+            {
+                if ((buf[src-1] == '*') && (buf[src] == '/'))
+                    inComment2 = false;
+            }
+
+            hasWhitespace = false;
+        }
+
+        if (keep)
+           buf[dst++] = buf[src];
+    }
+
+    return dst;
+}
 
 void ShowProgress(int progress, void *data)
 {
@@ -49,46 +164,42 @@ void ShowUsage(char *prgName)
     cerr << endl << "Options:" << endl;
     cerr << " -v        Be verbose" << endl;
     cerr << " -nostrip  Do not strip/preprocess JavaScript source" << endl;
+    cerr << " -nosfx    Do not create a self extracting JavaScript program" << endl;
     cerr << " -V        Show LZG library version and exit" << endl;
     cerr << endl << "If no output file is given, stdout is used for output." << endl;
 }
 
 int main(int argc, char **argv)
 {
-    char *inName, *outName;
-    size_t fileSize;
-    unsigned char *decBuf;
-    lzg_uint32_t decSize = 0;
-    unsigned char *encBuf;
-    lzg_uint32_t maxEncSize, encSize;
-    int arg, verbose, strip;
-    lzg_encoder_config_t config;
-
     // Default arguments
-    inName = NULL;
-    outName = NULL;
+    char *inName = NULL, *outName = NULL;
+    lzg_encoder_config_t config;
     LZG_InitEncoderConfig(&config);
     config.fast = LZG_TRUE;
     config.level = LZG_LEVEL_9;
-    verbose = 0;
-    strip = 1;
+    bool verbose = false;
+    bool strip = true;
+    bool sfx = true;
 
     // Get arguments
-    for (arg = 1; arg < argc; ++arg)
+    for (int i = 1; i < argc; ++i)
     {
-        if (strcmp("-v", argv[arg]) == 0)
-            verbose = 1;
-        else if (strcmp("-nostrip", argv[arg]) == 0)
-            strip = 0;
-        else if (strcmp("-V", argv[arg]) == 0)
+        string arg(argv[i]);
+        if (arg == "-v")
+            verbose = true;
+        else if (arg == "-nostrip")
+            strip = false;
+        else if (arg == "-nosfx")
+            sfx = false;
+        else if (arg == "-V")
         {
             cout << "LZG library version " << LZG_VersionString() << endl;
             return 0;
         }
         else if (!inName)
-            inName = argv[arg];
+            inName = argv[i];
         else if (!outName)
-            outName = argv[arg];
+            outName = argv[i];
         else
         {
             ShowUsage(argv[0]);
@@ -102,6 +213,11 @@ int main(int argc, char **argv)
     }
 
     // Read input file
+    size_t fileSize = 0;
+    unsigned char *decBuf;
+    lzg_uint32_t decSize = 0;
+    unsigned char *encBuf;
+    lzg_uint32_t maxEncSize, encSize;
     decBuf = (unsigned char*) 0;
     ifstream inFile(inName, ios_base::in | ios_base::binary);
     if (!inFile.fail())
@@ -137,10 +253,26 @@ int main(int argc, char **argv)
     if (!decBuf)
         return 0;
 
+    if (verbose)
+    {
+        cout << "Original size:       " << decSize << " bytes" << endl;
+    }
+
     // Strip whitespaces etc...
     if (strip)
     {
-        // FIXME
+        // Do several passes, until there is nothing more to strip
+        lzg_uint32_t decSizeOld;
+        do {
+            decSizeOld = decSize;
+            decSize = StripSource(decBuf, decSize);
+        } while (decSize != decSizeOld);
+
+        if (verbose)
+        {
+            cout << "Stripped size:       " << decSize << " bytes (" <<
+                    (100 * decSize) / fileSize << "% of the original)" << endl;
+        }
     }
 
     // Determine maximum size of compressed data
@@ -161,14 +293,32 @@ int main(int argc, char **argv)
         {
             if (verbose)
             {
-                cerr << "Result: " << encSize << " bytes (" <<
-                        ((100 * encSize) / decSize) << "% of the original)" << endl;
+                cerr << "Binary packed size:  " << encSize << " bytes (" <<
+                        ((100 * encSize) / fileSize) << "% of the original)" << endl;
             }
 
             // Encode in printable characters...
             // FIXME!
 
-            // Compressed data is now in encBuf, write it...
+            if (verbose)
+            {
+                cerr << "Latin1 encoded size: " << encSize << " bytes (" <<
+                        ((100 * encSize) / fileSize) << "% of the original)" << endl;
+            }
+
+            // Create self extracting module
+            if (sfx)
+            {
+                // FIXME
+            }
+
+            if (verbose)
+            {
+                cerr << "Final result:        " << encSize << " bytes (" <<
+                        ((100 * encSize) / fileSize) << "% of the original)" << endl;
+            }
+
+            // Write the result...
             bool failed = false;
             if (outName)
             {
@@ -185,7 +335,7 @@ int main(int argc, char **argv)
                 failed = cout.fail();
             }
             if (failed)
-              cerr << "Error writing to output file." << endl;
+                cerr << "Error writing to output file." << endl;
         }
         else
             cerr << "Compression failed!" << endl;
