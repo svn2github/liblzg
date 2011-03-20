@@ -36,6 +36,10 @@
 
 using namespace std;
 
+// Self extracting JavaScript code
+static const char jsSfxCodeHead[] = "eval(function(e){function h(j){if(j<28)return j+2;return o[j-28]}var b,a,g,k,c,d=[];for(c=0;c<e.length;){a=e.charCodeAt(c++)&255;if(a>=240)a=(a&15)<<4|e.charCodeAt(c++)&15;if(a<32)a+=208;else if(a>=208&&a<240)a-=208;d.push(a)}var o=[35,48,72,128],l=d[0],m=d[1],n=d[2],p=d[3];e=[];var f=0;for(c=4;c<d.length;){b=d[c++];if(b!=l&&b!=m&&b!=n&&b!=p)e[f++]=b;else{a=d[c++];if(a!=0){if(b==l){b=h(a&31);g=d[c++];k=d[c++];a=((a&224)<<11|g<<8|k)+2056}else if(b==m){b=h(a&31);g=d[c++];a=((a&224)<<3|g)+8}else if(b==n){b=(a>>6)+3;a=(a&63)+8}else{b=h(a&31);a=(a>>5)+1}for(i=0;i<b;i++){e[f]=e[f-a];f++}}else e[f++]=b}}d='';for(c=0;c<e.length;++c)d+=String.fromCharCode(e[c]);return d}('";
+static const char jsSfxCodeTail[] = "'));";
+
 // List of characters that do not require a white space
 static const char collapseChars[] = {
     '{', '}', '(', ')', '[', ']', '<', '>', '=', '+', '-', '*', '/', '%', '!',
@@ -150,6 +154,40 @@ lzg_uint32_t StripSource(unsigned char *buf, lzg_uint32_t size)
     }
 
     return dst;
+}
+
+lzg_uint32_t EncodeAsLatin1(unsigned char *src, unsigned char *dst,
+    lzg_uint32_t srcSize, lzg_uint32_t dstSize)
+{
+    lzg_uint32_t i, j = 0;
+    for (i = 16; i < srcSize; ++i)
+    {
+        unsigned char x = src[i];
+
+        // Swap the 0-31 range with the 208-239 range
+        if (x < 32) x += 208;
+        else if (x >= 208 && x < 240) x -= 208;
+
+        // Is this a "forbidden" character code?
+        if ((x < 32) || (x >= 127 && x < 160) || (x == 39) || (x == 92) ||
+            (x == 173) || (x >= 0xf0))
+        {
+            if (j >= (dstSize - 1))
+                return 0;
+
+            // Encode the character using two bytes
+            dst[j++] = 0xf0 + (x >> 4);
+            dst[j++] = 0xf0 + (x & 0x0f);
+        }
+        else
+        {
+            if (j >= dstSize)
+                return 0;
+            dst[j++] = x;
+        }
+    }
+
+    return j;
 }
 
 void ShowProgress(int progress, void *data)
@@ -297,45 +335,88 @@ int main(int argc, char **argv)
                         ((100 * encSize) / fileSize) << "% of the original)" << endl;
             }
 
-            // Encode in printable characters...
-            // FIXME!
-
-            if (verbose)
+            unsigned char *latin1Buf = (unsigned char*) malloc(encSize * 2);
+            if (latin1Buf)
             {
-                cerr << "Latin1 encoded size: " << encSize << " bytes (" <<
-                        ((100 * encSize) / fileSize) << "% of the original)" << endl;
-            }
+                // Encode in printable characters...
+                encSize = EncodeAsLatin1(encBuf, latin1Buf, encSize, encSize * 2);
 
-            // Create self extracting module
-            if (sfx)
-            {
-                // FIXME
-            }
+                if (verbose)
+                {
+                    cerr << "Latin1 encoded size: " << encSize << " bytes (" <<
+                            ((100 * encSize) / fileSize) << "% of the original)" << endl;
+                }
 
-            if (verbose)
-            {
-                cerr << "Final result:        " << encSize << " bytes (" <<
-                        ((100 * encSize) / fileSize) << "% of the original)" << endl;
-            }
+                // Create self extracting module
+                unsigned char *sfxBuf = (unsigned char*) malloc(4 +
+                    sizeof(jsSfxCodeHead)-1 + encSize + sizeof(jsSfxCodeTail)-1 + 1);
+                if (sfx)
+                {
+                    lzg_uint32_t j = 0;
 
-            // Write the result...
-            bool failed = false;
-            if (outName)
-            {
-                ofstream outFile(outName, ios_base::out | ios_base::binary);
-                if (outFile.fail())
-                    cerr << "Unable to open file \"" << outName << "\"." << endl;
-                outFile.write((char*)encBuf, encSize);
-                failed = outFile.fail();
-                outFile.close();
+                    // Convince some heuristics that this is Latin 1, not UTF-8
+                    sfxBuf[j++] = '/';
+                    sfxBuf[j++] = '/';
+                    sfxBuf[j++] = 192;
+                    sfxBuf[j++] = 10;
+
+                    // Head
+                    for (lzg_uint32_t i = 0; i < sizeof(jsSfxCodeHead) - 1; ++i)
+                        sfxBuf[j++] = jsSfxCodeHead[i];
+
+                    // Data
+                    for (lzg_uint32_t i = 0; i < encSize; ++i)
+                        sfxBuf[j++] = latin1Buf[i];
+
+                    // Tail
+                    for (lzg_uint32_t i = 0; i < sizeof(jsSfxCodeTail) - 1; ++i)
+                        sfxBuf[j++] = jsSfxCodeTail[i];
+
+                    // Line ending
+                    sfxBuf[j++] = 10;
+
+                    encSize = j;
+                }
+                else
+                {
+                    for (lzg_uint32_t i = 0; i < encSize; ++i)
+                        sfxBuf[i] = latin1Buf[i];
+                    encSize = encSize;
+                }
+
+                // Free memory when we're done with the Latin1 encoded data
+                free(latin1Buf);
+
+                if (verbose)
+                {
+                    cerr << "Final result:        " << encSize << " bytes (" <<
+                            ((100 * encSize) / fileSize) << "% of the original)" << endl;
+                }
+
+                // Write the result...
+                bool failed = false;
+                if (outName)
+                {
+                    ofstream outFile(outName, ios_base::out | ios_base::binary);
+                    if (outFile.fail())
+                        cerr << "Unable to open file \"" << outName << "\"." << endl;
+                    outFile.write((char*)sfxBuf, encSize);
+                    failed = outFile.fail();
+                    outFile.close();
+                }
+                else
+                {
+                    cout.write((char*)encBuf, encSize);
+                    failed = cout.fail();
+                }
+                if (failed)
+                    cerr << "Error writing to output file." << endl;
+
+                // Free memory when we're done with the self extracting module
+                free(sfxBuf);
             }
             else
-            {
-                cout.write((char*)encBuf, encSize);
-                failed = cout.fail();
-            }
-            if (failed)
-                cerr << "Error writing to output file." << endl;
+                cerr << "Out of memory!" << endl;
         }
         else
             cerr << "Compression failed!" << endl;
