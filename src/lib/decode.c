@@ -84,7 +84,7 @@ unsigned int LZG_Decode(const unsigned char *in, lzg_uint32_t insize,
     unsigned char *src, *inEnd, *dst, *outEnd, *copy, symbol, b, b2;
     unsigned char marker1, marker2, marker3, marker4, method;
     lzg_uint32_t  i, length, offset, encodedSize, decodedSize, checksum;
-    char isMarkerSymbolLUT[255];
+    char isMarkerSymbolLUT[256];
 
     /* Does the input buffer at least contain the header? */
     if (insize < LZG_HEADER_SIZE)

@@ -3,7 +3,7 @@
 ################################################################################
 # This file is part of liblzg.
 #
-# Copyright (c) 2010 Marcus Geelnard
+# Copyright (c) 2011 Marcus Geelnard
 #
 # This software is provided 'as-is', without any express or implied
 # warranty. In no event will the authors be held liable for any damages
@@ -28,8 +28,6 @@
 # Compiler and linker settings
 CC = gcc
 CFLAGS = -c -O3 -W -Wall -I../include
-CPP = g++
-CPPFLAGS = -c -O3 -W -Wall -I../include
 LFLAGS = -L../lib
 LIBS = -llzg
 RM = rm -f
@@ -61,19 +59,17 @@ UNLZG = unlzg
 UNLZG_OBJS = unlzg.o
 BENCHMARK = benchmark
 BENCHMARK_OBJS = benchmark.o
-JSPACK = jspack
-JSPACK_OBJS = jspack.o
 STATIC_LIB = ../lib/liblzg.a
 
 .PHONY: all clean
 
 # Master rule
-all: $(LZG) $(UNLZG) $(BENCHMARK) $(JSPACK)
+all: $(LZG) $(UNLZG) $(BENCHMARK)
 
 # Clean rule
 clean:
 	$(RM) $(LZG) $(LZG_OBJS) $(UNLZG) $(UNLZG_OBJS) \
-	      $(BENCHMARK) $(BENCHMARK_OBJS) $(JSPACK) $(JSPACK_OBJS)
+	      $(BENCHMARK) $(BENCHMARK_OBJS)
 
 # Program build rules
 $(LZG): $(LZG_OBJS) $(STATIC_LIB)
@@ -85,9 +81,6 @@ $(UNLZG): $(UNLZG_OBJS) $(STATIC_LIB)
 $(BENCHMARK): $(BENCHMARK_OBJS) $(STATIC_LIB)
 	$(CC) $(LFLAGS) -o $@ $(BENCHMARK_OBJS) $(BM_LIBS)
 
-$(JSPACK): $(JSPACK_OBJS) $(STATIC_LIB)
-	$(CPP) $(LFLAGS) -o $@ $(JSPACK_OBJS) $(LIBS)
-
 # Object files build rules
 lzg.o: lzg.c ../include/lzg.h
 	$(CC) $(CFLAGS) $<
@@ -97,7 +90,4 @@ unlzg.o: unlzg.c ../include/lzg.h
 
 benchmark.o: benchmark.c ../include/lzg.h
 	$(CC) $(BM_CFLAGS) $<
-
-jspack.o: jspack.cpp ../include/lzg.h
-	$(CPP) $(CPPFLAGS) $<
 
