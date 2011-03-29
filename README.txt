@@ -36,7 +36,7 @@ or not.
 Version history
 ---------------
 
-v1.0.6 - 2011.??.??
+v1.0.6 - 2011.03.29
 
  - Fixed a potential out-of-bounds bug in the C decoder.
  - Minor changes in the encoder (more consistent choise of marker symbols).
